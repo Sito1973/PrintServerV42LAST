@@ -156,60 +156,53 @@ class PrintService {
       }
     });
 
-    // Listener para nuevos trabajos de impresión - MOVIDO AQUÍ Y SIMPLIFICADO
-    // Se registra una vez cuando se configuran los event listeners.
-    this.socket.off('new-print-job'); // Asegurar que no haya listeners duplicados de previas inicializaciones incompletas
-    this.socket.on('new-print-job', async (job: PrintJob & { targetUserId?: number, targetUsername?: string }) => {
-      console.log(`🎯 [PRINTSERVICE] ========== NUEVO TRABAJO RECIBIDO (listener principal) ==========`);
-      console.log(`⏰ [PRINTSERVICE] Timestamp: ${new Date().toISOString()}`);
-      console.log(`🔌 [PRINTSERVICE] Socket ID: ${this.socket?.id}`);
-      console.log(`👤 [PRINTSERVICE] Usuario actual (en el momento del evento): ${this.currentUserId}`);
-      console.log(`📋 [PRINTSERVICE] ID: ${job.id}`);
-      console.log(`📄 [PRINTSERVICE] Documento: ${job.documentName}`);
-      console.log(`📊 [PRINTSERVICE] Estado: ${job.status}`);
-      console.log(`🎯 [PRINTSERVICE] Target Usuario (del job): ${job.targetUserId || 'NO ESPECIFICADO'}`);
-      // console.log(`📦 [PRINTSERVICE] Datos completos del trabajo:`, JSON.stringify(job, null, 2)); // Descomentar para debug extremo
+    // Listener para nuevos trabajos de impresión - SIMPLIFICADO PARA DEBUG
+    this.socket.off('new-print-job'); 
+    this.socket.on('new-print-job', (jobData: any) => { // Usar 'any' temporalmente
+      console.log('*****************************************************');
+      console.log(`EVENTO 'new-print-job' LLEGÓ AL CLIENTE (listener principal SIMPLIFICADO)!`);
+      console.log('DATOS RECIBIDOS:', JSON.stringify(jobData, null, 2));
+      console.log('ID DEL SOCKET ACTUAL DEL CLIENTE:', this.socket?.id);
+      console.log('*****************************************************');
 
-      if (!this.currentUserId) {
-        console.warn(`⚠️ [PRINTSERVICE] Usuario actual no establecido (currentUserId: ${this.currentUserId}). El trabajo ${job.id} podría no ser procesado correctamente si requiere filtrado de usuario. Intentando autenticar...`);
-        // Podríamos incluso encolar el trabajo y re-evaluar tras autenticación, o simplemente esperar al polling.
-        // Por ahora, se intentará procesar si no hay targetUserId o si coincide con un currentUserId recuperado tardíamente.
-        this.authenticateSocket(); // Intenta re-autenticar por si acaso
-      }
-
-      // Verificar que QZ Tray esté conectado antes de procesar
-      if (!isQzTrayConnected()) {
-        console.log(`⚠️ [PRINTSERVICE] QZ Tray no conectado para trabajo ${job.id}. Intentando reconectar QZ Tray...`);
-        try {
-          const reconnected = await initQzTray();
-          if (!reconnected) {
-            console.error(`❌ [PRINTSERVICE] No se pudo reconectar QZ Tray para trabajo ${job.id}. El trabajo no se procesará por WebSocket.`);
-            return; // No procesar si QZ Tray no está listo
-          }
-          console.log(`✅ [PRINTSERVICE] QZ Tray reconectado exitosamente.`);
-        } catch (error) {
-          console.error(`❌ [PRINTSERVICE] Error reconectando QZ Tray:`, error);
-          return; // No procesar
-        }
-      }
-
-      // Filtro para asegurar que el trabajo es para el usuario actual,
-      // solo si el trabajo especifica un targetUserId Y tenemos un currentUserId.
-      if (job.targetUserId && this.currentUserId && job.targetUserId !== this.currentUserId) {
-        console.log(`⏭️ [PRINTSERVICE] Trabajo ${job.id} ignorado: no es para este usuario (target: ${job.targetUserId}, actual: ${this.currentUserId})`);
-        return;
-      }
-      // Si no hay targetUserId en el job, o no tenemos currentUserId aún, se asume que es global o para este cliente.
-      // Esto permite que trabajos sin target específico (o antes de que currentUserId se establezca) puedan ser procesados.
-
-      this.socket?.emit('job-received', {jobId: job.id, status: 'received_by_client', timestamp: Date.now()});
-
-      if (job.status === 'ready_for_client') {
-        console.log(`✅ [PRINTSERVICE] Trabajo ${job.id} está 'ready_for_client'. Iniciando procesamiento inmediato.`);
-        await this.processJobImmediately(job);
-      } else {
-        console.log(`⏭️ [PRINTSERVICE] Trabajo ${job.id} no está 'ready_for_client' (estado actual: ${job.status}). No se procesará inmediatamente por WebSocket. Esperando polling o actualización de estado.`);
-      }
+      // LÓGICA ORIGINAL COMENTADA:
+      // console.log(`🎯 [PRINTSERVICE] ========== NUEVO TRABAJO RECIBIDO (listener principal) ==========`);
+      // console.log(`⏰ [PRINTSERVICE] Timestamp: ${new Date().toISOString()}`);
+      // console.log(`🔌 [PRINTSERVICE] Socket ID: ${this.socket?.id}`);
+      // console.log(`👤 [PRINTSERVICE] Usuario actual (en el momento del evento): ${this.currentUserId}`);
+      // console.log(`📋 [PRINTSERVICE] ID: ${job.id}`);
+      // console.log(`📄 [PRINTSERVICE] Documento: ${job.documentName}`);
+      // console.log(`📊 [PRINTSERVICE] Estado: ${job.status}`);
+      // console.log(`🎯 [PRINTSERVICE] Target Usuario (del job): ${job.targetUserId || 'NO ESPECIFICADO'}`);
+      // if (!this.currentUserId) {
+      //   console.warn(`⚠️ [PRINTSERVICE] Usuario actual no establecido (currentUserId: ${this.currentUserId}). El trabajo ${job.id} podría no ser procesado correctamente si requiere filtrado de usuario. Intentando autenticar...`);
+      //   this.authenticateSocket();
+      // }
+      // if (!isQzTrayConnected()) {
+      //   console.log(`⚠️ [PRINTSERVICE] QZ Tray no conectado para trabajo ${job.id}. Intentando reconectar QZ Tray...`);
+      //   try {
+      //     const reconnected = await initQzTray();
+      //     if (!reconnected) {
+      //       console.error(`❌ [PRINTSERVICE] No se pudo reconectar QZ Tray para trabajo ${job.id}. El trabajo no se procesará por WebSocket.`);
+      //       return;
+      //     }
+      //     console.log(`✅ [PRINTSERVICE] QZ Tray reconectado exitosamente.`);
+      //   } catch (error) {
+      //     console.error(`❌ [PRINTSERVICE] Error reconectando QZ Tray:`, error);
+      //     return;
+      //   }
+      // }
+      // if (job.targetUserId && this.currentUserId && job.targetUserId !== this.currentUserId) {
+      //   console.log(`⏭️ [PRINTSERVICE] Trabajo ${job.id} ignorado: no es para este usuario (target: ${job.targetUserId}, actual: ${this.currentUserId})`);
+      //   return;
+      // }
+      // this.socket?.emit('job-received', {jobId: job.id, status: 'received_by_client', timestamp: Date.now()});
+      // if (job.status === 'ready_for_client') {
+      //   console.log(`✅ [PRINTSERVICE] Trabajo ${job.id} está 'ready_for_client'. Iniciando procesamiento inmediato.`);
+      //   await this.processJobImmediately(job);
+      // } else {
+      //   console.log(`⏭️ [PRINTSERVICE] Trabajo ${job.id} no está 'ready_for_client' (estado actual: ${job.status}). No se procesará inmediatamente por WebSocket. Esperando polling o actualización de estado.`);
+      // }
     });
     console.log(`✅ [PRINTSERVICE] Listener principal para 'new-print-job' configurado.`);
 
