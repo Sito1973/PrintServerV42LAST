@@ -1,0 +1,143 @@
+ // Endpoint para imprimir con ID numérico de impresora - PROCESAMIENTO INMEDIATO
+  app.post("/api/print-id", async (req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+
+    try {
+      // Validar API Key
+      const user = await validateApiKey(req, res);
+      if (!user) return;
+
+      // Parsear datos
+      const printData = numericPrinterJobRequestSchema.parse(req.body);
+
+      // Buscar impresora
+      const printer = await storage.getPrinter(printData.printerId);
+      if (!printer) {
+        return res.status(404).json({ message: "Impresora no encontrada" });
+      }
+
+      if (printer.status === 'offline') {
+        return res.status(400).json({ message: "Impresora está desconectada" });
+      }
+
+      // Nombre del documento
+      const documentName = printData.documentName || 
+        printData.documentUrl.split('/').pop() || 'documento.pdf';
+
+      // Crear trabajo con estado inicial optimizado
+      const printJob = await storage.createPrintJob({
+        documentUrl: printData.documentUrl,
+        documentName,
+        printerId: printer.id,
+        userId: user.id,
+        copies: printData.copies,
+        duplex: printData.duplex,
+        orientation: printData.orientation
+      });
+
+      // PROCESAMIENTO SÍNCRONO INMEDIATO (sin setTimeout)
+      // Preparar datos QZ mínimos sin descargar PDF
+      const qzData = {
+        printer: printer.name,
+        data: [{
+          type: 'pixel',
+          format: 'pdf',
+          flavor: 'file', // URL directa
+          data: printData.documentUrl,
+          options: {
+            orientation: printData.orientation || 'portrait',
+            copies: printData.copies || 1,
+            duplex: printData.duplex || false,
+            ignoreTransparency: printData.options?.ignoreTransparency ?? true,
+            altFontRendering: printData.options?.altFontRendering ?? true,
+            ...(printData.options?.pageRanges && { pageRanges: printData.options.pageRanges }),
+            ...(printData.options?.scaleContent !== undefined && { scaleContent: printData.options.scaleContent }),
+            ...(printData.options?.rasterize !== undefined && { rasterize: printData.options.rasterize }),
+            ...(printData.options?.interpolation && { interpolation: printData.options.interpolation }),
+            ...(printData.options?.colorType && { colorType: printData.options.colorType }),
+          }
+        }],
+        config: {
+          jobName: `${documentName} - ID: ${printJob.id}`,
+          units: 'mm',
+          ...(printData.options?.density !== undefined && { density: printData.options.density }),
+          ...(printData.options?.colorType && { colorType: printData.options.colorType }),
+          ...(printData.options?.interpolation && { interpolation: printData.options.interpolation }),
+          ...(printData.options?.scaleContent !== undefined && { scaleContent: printData.options.scaleContent }),
+          ...(printData.options?.rasterize !== undefined && { rasterize: printData.options.rasterize }),
+        }
+      };
+
+      // Configurar márgenes desde la solicitud JSON o usar valores por defecto
+      qzData.config.margins = printData.margins || {
+        top: 12.7,   // milímetros por defecto (equivalente a 0.5 pulgadas)
+        right: 12.7,
+        bottom: 12.7,
+        left: 12.7
+      };
+
+      // Actualizar inmediatamente a listo
+      await storage.updatePrintJob(printJob.id, { 
+        status: 'ready_for_client',
+        qzTrayData: JSON.stringify(qzData)
+      });
+
+      // Notificar vía WebSocket SOLO AL USUARIO DUEÑO
+      if (socketServer) {
+        const jobData = {
+          id: printJob.id,
+          documentName,
+          documentUrl: printData.documentUrl,
+          printerName: printer.name,
+          printerUniqueId: printer.uniqueId,
+          status: 'ready_for_client',
+          copies: printData.copies,
+          duplex: printData.duplex,
+          orientation: printData.orientation,
+          qzTrayData: qzData,
+          timestamp: Date.now()
+        };
+
+        // Obtener el socket específico del usuario
+        const userSocketId = (global as any).getUserSocket?.(user.id.toString());
+
+      console.log(`🔍 [NOTIF] ========== VERIFICANDO NOTIFICACIÓN ==========`);
+      console.log(`👤 [NOTIF] Usuario: ${user.username} (ID: ${user.id})`);
+      console.log(`🔌 [NOTIF] Socket ID obtenido: ${userSocketId || 'NINGUNO'}`);
+        // Modificar el siguiente log
+        console.log(`✅ [NOTIF] Socket existe según getUserSocket: ${userSocketId ? 'SÍ' : 'NO'}`);
+
+        // Modificar la condición del if
+        if (userSocketId) {
+        socketServer.to(userSocketId).emit('new-print-job', jobData);
+        console.log(`📡 [NOTIF] ✅ Trabajo ${printJob.id} notificado EXITOSAMENTE al usuario ${user.username}`);
+      } else {
+          console.log(`⚠️ [NOTIF] ❌ Usuario ${user.username} NO CONECTADO VIA WEBSOCKET (según getUserSocket)`);
+        console.log(`🔄 [NOTIF] Trabajo ${printJob.id} se procesará por polling (modo fallback)`);
+
+        // Debug adicional
+        const allSockets = Array.from(socketServer.sockets.sockets.keys());
+          console.log(`🔧 [DEBUG] Sockets activos (momento del fallback): [${allSockets.join(', ')}]`);
+        console.log(`🔧 [DEBUG] Función getUserSocket disponible: ${typeof (global as any).getUserSocket}`);
+      }
+      }
+
+      // Respuesta inmediata
+      res.status(201).json({
+        success: true,
+        jobId: printJob.id,
+        status: 'ready_for_client',
+        immediate_processing: true,
+        message: 'Documento listo para impresión inmediata',
+        printer: {
+          id: printer.id,
+          name: printer.name,
+          status: printer.status
+        }
+      });
+
+    } catch (error) {
+      console.error("❌ Error en /api/print-id:", error);
+      handleValidationError(error, res);
+    }
+  });

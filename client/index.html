@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PrinterHub - Gestión de Impresión QZ Tray</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Favicon -->
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-72x72.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/icons/icon-72x72.png">
+  <link rel="shortcut icon" href="/favicon.ico">
+
+  <!-- PWA Meta Tags -->
+  <meta name="description" content="Sistema de impresión remota para gestionar impresoras y trabajos de impresión">
+  <meta name="theme-color" content="#2563eb">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/icons/icon-192x192.png">
+
+  <!-- QZ Tray scripts - Configuración simplificada -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jsencrypt/3.3.2/jsencrypt.min.js"></script>
+  <!-- QZ Tray se cargará dinámicamente desde la librería -->
+
+  <!-- Configuración básica de QZ Tray -->
+  <script>
+    // Solo verificar que QZ Tray se cargue correctamente
+    window.addEventListener('DOMContentLoaded', function() {
+      console.log('DOM cargado, verificando QZ Tray...');
+
+      // Verificar si QZ Tray está disponible
+      if (typeof qz !== 'undefined') {
+        console.log('✅ QZ Tray library cargada correctamente:', qz.version || 'versión desconocida');
+        window.qzReady = true;
+      } else {
+        console.warn('⚠️ QZ Tray library no disponible');
+        window.qzReady = false;
+
+        // Mostrar advertencia visual después de 3 segundos
+        setTimeout(function() {
+          if (typeof qz === 'undefined') {
+            console.error('⛔ QZ Tray no se pudo cargar');
+          }
+        }, 3000);
+      }
+    });
+  </script>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.tsx"></script>
+</body>
+</html>

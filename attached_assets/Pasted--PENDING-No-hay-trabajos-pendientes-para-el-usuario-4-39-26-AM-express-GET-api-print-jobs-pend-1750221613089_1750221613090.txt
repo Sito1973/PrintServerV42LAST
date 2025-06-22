@@ -1,0 +1,27 @@
+ [PENDING] No hay trabajos pendientes para el usuario
+4:39:26 AM [express] GET /api/print-jobs/pending 304 in 209ms :: []
+4:39:30 AM [vite] hmr update /src/components/users/UserList.tsx, /src/index.css?v=IjT6HnHtpF8ZEwEXSU8eH (x5)
+4:39:30 AM [vite] Internal server error: /home/runner/workspace/client/src/components/users/UserList.tsx: Expected corresponding JSX closing tag for <table>. (389:65)
+
+  387 |       <div className="shadow overflow-hidden border-b border-gray-200 sm:rounded-lg">
+  388 |         <div className="overflow-x-auto">
+> 389 |           <table className="min-w-full divide-y divide-gray-200"></div>
+      |                                                                  ^
+  390 |           <thead className="bg-gray-50">
+  391 |             <tr>
+  392 |               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+  Plugin: vite:react-babel
+  File: /home/runner/workspace/client/src/components/users/UserList.tsx:389:65
+  387|        <div className="shadow overflow-hidden border-b border-gray-200 sm:rounded-lg">
+  388|          <div className="overflow-x-auto">
+  389|            <table className="min-w-full divide-y divide-gray-200"></div>
+     |                                                                   ^
+  390|            <thead className="bg-gray-50">
+  391|              <tr>
+      at toParseError (/home/runner/workspace/node_modules/@babel/parser/src/parse-error.ts:95:45)
+      at raise (/home/runner/workspace/node_modules/@babel/parser/src/tokenizer/index.ts:1503:19)
+      at jsxParseElementAt (/home/runner/workspace/node_modules/@babel/parser/src/plugins/jsx/index.ts:527:18)
+      at jsxParseElementAt (/home/runner/workspace/node_modules/@babel/parser/src/plugins/jsx/index.ts:483:34)
+      at jsxParseElementAt (/home/runner/workspace/node_modules/@babel/parser/src/plugins/jsx/index.ts:483:34)
+      at jsxParseElementAt (/home/runner/workspace/node_modules/@babel/parser/src/plugins/jsx/index.ts:483:34)
+      at jsxParseElement (/home/runner/workspace/node_modules/@babel/parser/src/plugins/jsx/i

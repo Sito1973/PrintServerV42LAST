@@ -1,0 +1,211 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply font-sans antialiased text-foreground;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: linear-gradient(135deg, hsl(var(--background)) 0%, hsl(220 14% 96%) 100%);
+    min-height: 100vh;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--accent));
+  }
+}
+
+@layer components {
+  /* Modern glass effect */
+  .glass-effect {
+    backdrop-filter: blur(16px) saturate(180%);
+    background: rgba(255, 255, 255, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.125);
+  }
+
+  /* Modern card shadow */
+  .modern-shadow {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 
+                0 2px 4px -2px rgba(0, 0, 0, 0.1),
+                0 0 0 1px rgba(255, 255, 255, 0.05);
+  }
+
+  /* Hover effects */
+  .hover-lift {
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .hover-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px -3px rgba(0, 0, 0, 0.1), 
+                0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  }
+
+  /* Modern button styles */
+  .btn-modern {
+    @apply inline-flex items-center justify-center rounded-xl px-6 py-3 text-sm font-medium;
+    @apply transition-all duration-200 ease-in-out;
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2;
+    @apply disabled:pointer-events-none disabled:opacity-50;
+  }
+
+  .btn-primary {
+    @apply btn-modern bg-gradient-to-r from-blue-600 to-indigo-600 text-white;
+    @apply hover:from-blue-700 hover:to-indigo-700 hover:shadow-lg hover:shadow-blue-500/25;
+    @apply active:scale-95 transform;
+  }
+
+  .btn-secondary {
+    @apply btn-modern bg-gradient-to-r from-gray-100 to-gray-200 text-gray-900;
+    @apply hover:from-gray-200 hover:to-gray-300 hover:shadow-md;
+    @apply active:scale-95;
+  }
+
+  /* Modern input styles */
+  .input-modern {
+    @apply w-full rounded-xl border border-gray-200 px-4 py-3 text-sm;
+    @apply transition-all duration-200 ease-in-out;
+    @apply focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none;
+    @apply placeholder:text-gray-400;
+    background: rgba(255, 255, 255, 0.8);
+  }
+
+  /* Login specific styles */
+  .login-gradient {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  }
+
+  .glass-effect {
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+  }
+
+  /* Modern card styles */
+  .card-modern {
+    @apply rounded-2xl border border-gray-100/50 bg-white/80 p-6;
+    @apply backdrop-blur-sm shadow-xl shadow-gray-900/5;
+    @apply transition-all duration-300 ease-in-out;
+  }
+
+  .card-modern:hover {
+    @apply shadow-2xl shadow-gray-900/10 border-gray-200/80;
+    transform: translateY(-1px);
+  }
+
+  /* Status indicators */
+  .status-online {
+    @apply inline-flex items-center gap-2 rounded-full bg-green-50 px-3 py-1 text-xs font-medium text-green-700;
+  }
+
+  .status-offline {
+    @apply inline-flex items-center gap-2 rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-red-700;
+  }
+
+  .status-warning {
+    @apply inline-flex items-center gap-2 rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700;
+  }
+
+  /* Modern navigation */
+  .nav-modern {
+    @apply flex items-center gap-1 rounded-xl bg-gray-100/50 p-1;
+    backdrop-filter: blur(8px);
+  }
+
+  .nav-item {
+    @apply rounded-lg px-4 py-2 text-sm font-medium transition-all duration-200;
+    @apply hover:bg-white hover:shadow-sm;
+  }
+
+  .nav-item.active {
+    @apply bg-white text-blue-600 shadow-sm;
+  }
+
+  /* Animation utilities */
+  .animate-fade-in {
+    animation: fadeIn 0.6s ease-out forwards;
+  }
+
+  .animate-slide-up {
+    animation: slideUp 0.6s ease-out forwards;
+  }
+
+  .animate-scale-in {
+    animation: scaleIn 0.4s ease-out forwards;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes slideUp {
+    from { 
+      opacity: 0; 
+      transform: translateY(20px); 
+    }
+    to { 
+      opacity: 1; 
+      transform: translateY(0); 
+    }
+  }
+
+  @keyframes scaleIn {
+    from { 
+      opacity: 0; 
+      transform: scale(0.95); 
+    }
+    to { 
+      opacity: 1; 
+      transform: scale(1); 
+    }
+  }
+
+  /* Modern gradient text */
+  .gradient-text {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  /* Loading spinner */
+  .spinner {
+    width: 20px;
+    height: 20px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #3498db;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+}
