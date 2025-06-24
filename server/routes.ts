@@ -2327,6 +2327,233 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ✅ ENDPOINT DE TEST ESC/POS RAW
+  app.post("/api/test-escpos", async (req, res) => {
+    try {
+      const user = await validateApiKey(req, res);
+      if (!user) return;
+
+      const { printerName, testType = 'basic' } = req.body;
+
+      if (!printerName) {
+        return res.status(400).json({ 
+          error: "Se requiere el nombre de la impresora" 
+        });
+      }
+
+      console.log(`🧪 [ESC/POS-TEST] Iniciando test para impresora: ${printerName}`);
+      console.log(`🧪 [ESC/POS-TEST] Tipo de test: ${testType}`);
+      console.log(`👤 [ESC/POS-TEST] Usuario: ${user.username}`);
+
+      // Buscar la impresora
+      const allPrinters = await storage.listPrinters();
+      const printer = allPrinters.find(p => p.name === printerName);
+
+      if (!printer) {
+        return res.status(404).json({ 
+          error: `Impresora '${printerName}' no encontrada` 
+        });
+      }
+
+      // Datos ESC/POS según el tipo de test
+      let escposData: any[];
+      let documentName: string;
+
+      switch (testType) {
+        case 'basic':
+          documentName = 'Test ESC/POS Básico';
+          escposData = [
+            '\x1B\x40',          // init
+            '\x1B\x61\x31',     // center align
+            'PRINT SERVER V42\n',
+            '==================\n',
+            '\n',
+            'Test de impresión básico\n',
+            `Usuario: ${user.username}\n`,
+            `Fecha: ${new Date().toLocaleString()}\n`,
+            '\n',
+            '\x1B\x61\x30',     // left align
+            'Este es un test básico de\n',
+            'impresión ESC/POS.\n',
+            '\n',
+            '\x1B\x45\x0D',     // bold on
+            'TEXTO EN NEGRITA',
+            '\x1B\x45\x0A',     // bold off
+            '\n\n',
+            '====================\n',
+            'Fin del test\n',
+            '\n\n\n',
+            '\x1B\x69',         // cut paper
+          ];
+          break;
+
+        case 'advanced':
+          documentName = 'Test ESC/POS Avanzado';
+          escposData = [
+            '\x1B\x40',          // init
+            '\x1B\x61\x31',     // center align
+            '\x1B\x21\x30',     // em mode on
+            'PRINT SERVER V42',
+            '\x1B\x21\x0A',     // em mode off
+            '\n',
+            '========================\n',
+            '\n',
+            `Usuario: ${user.username}\n`,
+            `Impresora: ${printerName}\n`,
+            `Fecha: ${new Date().toLocaleString()}\n`,
+            '\n',
+            '\x1B\x61\x30',     // left align
+            '------------------------\n',
+            '\x1B\x45\x0D',     // bold on
+            'FUNCIONES DE PRUEBA:',
+            '\x1B\x45\x0A',     // bold off
+            '\n',
+            '✓ Alineación centrada\n',
+            '✓ Alineación izquierda\n',
+            '✓ Texto en negrita\n',
+            '✓ Diferentes tamaños\n',
+            '✓ Caracteres especiales\n',
+            '\n',
+            '\x1B\x61\x32',     // right align
+            '\x1B\x4D\x31',     // small text
+            'Texto pequeño alineado\na la derecha',
+            '\x1B\x4D\x30',     // normal text
+            '\n',
+            '\x1B\x61\x30',     // left align
+            '\n',
+            'Caracteres especiales:\n',
+            'áéíóú ñ ¡¿ € $ % & @\n',
+            '\n',
+            '========================\n',
+            'Test completado ✓\n',
+            '\n\n\n',
+            '\x1B\x69',         // cut paper
+          ];
+          break;
+
+        case 'receipt':
+          documentName = 'Test Ticket ESC/POS';
+          escposData = [
+            '\x1B\x40',          // init
+            '\x1B\x61\x31',     // center align
+            '\x1B\x21\x30',     // em mode on
+            'RECIBO DE PRUEBA',
+            '\x1B\x21\x0A',     // em mode off
+            '\n',
+            'Print Server V42\n',
+            'Sistema de Impresión\n',
+            '\n',
+            `Fecha: ${new Date().toLocaleDateString()}\n`,
+            `Hora: ${new Date().toLocaleTimeString()}\n`,
+            `Cajero: ${user.username}\n`,
+            'Ticket #: TST-' + Date.now().toString().slice(-6) + '\n',
+            '\n',
+            '\x1B\x61\x30',     // left align
+            '--------------------------------\n',
+            'ARTÍCULOS:\n',
+            '--------------------------------\n',
+            'Test Item 1       x1    $10.00\n',
+            'Test Item 2       x2    $25.50\n',
+            'Test Item 3       x1     $8.75\n',
+            '--------------------------------\n',
+            '\x1B\x61\x32',     // right align
+            'Subtotal:   $44.25\n',
+            'IVA (16%):   $7.08\n',
+            '\x1B\x45\x0D',     // bold on
+            'TOTAL:     $51.33',
+            '\x1B\x45\x0A',     // bold off
+            '\n',
+            '\x1B\x61\x31',     // center align
+            '\n',
+            '¡Gracias por su compra!\n',
+            'www.printserver.com\n',
+            '\n',
+            '********************************\n',
+            '\n\n\n',
+            '\x1B\x69',         // cut paper
+          ];
+          break;
+
+        default:
+          return res.status(400).json({ 
+            error: "Tipo de test inválido. Use: basic, advanced, receipt" 
+          });
+      }
+
+      // Crear la configuración QZ para impresión RAW
+      const qzData = {
+        printer: printer.name,
+        data: escposData,
+        config: {
+          type: 'raw',
+          format: 'command',
+          flavor: 'plain'
+        }
+      };
+
+      console.log(`📋 [ESC/POS-TEST] Datos preparados para impresión RAW`);
+      console.log(`📋 [ESC/POS-TEST] Comandos ESC/POS: ${escposData.length} elementos`);
+
+      // Crear trabajo de impresión
+      const printJob = await storage.createPrintJob({
+        documentName,
+        documentUrl: `test-escpos-${testType}`,
+        printerId: printer.id,
+        userId: user.id,
+        copies: 1,
+        duplex: false,
+        orientation: 'portrait',
+        status: 'ready_for_client',
+        qzTrayData: JSON.stringify(qzData)
+      });
+
+      console.log(`✅ [ESC/POS-TEST] Trabajo ${printJob.id} creado y listo para cliente`);
+
+      // Notificar vía WebSocket
+      const jobData = {
+        id: printJob.id,
+        documentName,
+        documentUrl: `test-escpos-${testType}`,
+        printerName: printer.name,
+        printerUniqueId: printer.uniqueId,
+        status: 'ready_for_client',
+        copies: 1,
+        duplex: false,
+        orientation: 'portrait',
+        qzTrayData: qzData,
+        timestamp: Date.now(),
+        isEscPosTest: true
+      };
+
+      // Obtener socket del usuario y notificar
+      const userSocketId = (global as any).getUserSocket?.(user.id.toString());
+      if (userSocketId && socketServer) {
+        console.log(`🚀 [ESC/POS-TEST] Notificando a usuario ${user.username} via WebSocket`);
+        socketServer.to(userSocketId).emit('new-print-job', jobData);
+      } else {
+        console.log(`⚠️ [ESC/POS-TEST] Usuario no conectado por WebSocket - procesará por polling`);
+      }
+
+      res.json({
+        success: true,
+        message: `Test ESC/POS '${testType}' enviado a impresora '${printerName}'`,
+        jobId: printJob.id,
+        documentName,
+        printerName: printer.name,
+        testType,
+        dataElements: escposData.length,
+        notifiedViaWebSocket: !!userSocketId
+      });
+
+    } catch (error) {
+      console.error('❌ [ESC/POS-TEST] Error:', error);
+      res.status(500).json({ 
+        error: 'Error al procesar test ESC/POS',
+        details: error instanceof Error ? error.message : 'Error desconocido'
+      });
+    }
+  });
+
 
   return httpServer;
 }
