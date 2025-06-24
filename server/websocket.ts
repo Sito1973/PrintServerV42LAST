@@ -87,7 +87,7 @@ export function setupWebSocket(httpServer: HTTPServer) {
   console.log(`🌐 [WS] ========== CONFIGURACIÓN GLOBAL INICIAL ==========`);
   console.log(`✅ [WS] socketServer configurado: ${!!socketServer}`);
   console.log(`✅ [WS] globalUserSockets inicializado: ${!!globalUserSockets}`);
-  
+
 
   io.on('connection', (socket) => {
     console.log(`🔌 [WS] ========== NUEVA CONEXIÓN WEBSOCKET ==========`);
@@ -150,6 +150,65 @@ export function setupWebSocket(httpServer: HTTPServer) {
           console.log(`👤 [WS] Usuario: ${user.username} (ID: ${user.id})`);
           console.log(`🔌 [WS] Socket: ${socket.id}`);
           console.log(`🏠 [WS] Salas: print-jobs, user-${user.id}`);
+
+          // VERIFICACIÓN INMEDIATA de salas con análisis completo
+          setTimeout(() => {
+            console.log(`🔍 [WS] ========== VERIFICACIÓN COMPLETA DE SALAS POST-AUTH ==========`);
+
+            // Estado del socket específico
+            const socketRooms = Array.from(socket.rooms);
+            console.log(`🔌 [WS] Socket ${socket.id} está en salas: [${socketRooms.join(', ')}]`);
+
+            // Estado de salas específicas del usuario
+            const userRoom = io.sockets.adapter.rooms.get(`user-${user.id}`);
+            const printJobsRoom = io.sockets.adapter.rooms.get('print-jobs');
+
+            console.log(`👤 [WS] Sala user-${user.id}:`);
+            console.log(`   - Existe: ${!!userRoom}`);
+            console.log(`   - Tamaño: ${userRoom?.size || 0}`);
+            if (userRoom && userRoom.size > 0) {
+              console.log(`   - Sockets: [${Array.from(userRoom).join(', ')}]`);
+            }
+
+            console.log(`📋 [WS] Sala print-jobs:`);
+            console.log(`   - Existe: ${!!printJobsRoom}`);
+            console.log(`   - Tamaño: ${printJobsRoom?.size || 0}`);
+            if (printJobsRoom && printJobsRoom.size > 0) {
+              console.log(`   - Sockets: [${Array.from(printJobsRoom).slice(0, 5).join(', ')}]${printJobsRoom.size > 5 ? '...' : ''}`);
+            }
+
+            // Estado global del sistema
+            const allRooms = io.sockets.adapter.rooms;
+            const allSockets = io.sockets.sockets;
+
+            console.log(`📊 [WS] Estado global del WebSocket:`);
+            console.log(`   🔌 Total sockets: ${allSockets.size}`);
+            console.log(`   🏠 Total salas: ${allRooms.size}`);
+
+            // Mostrar todas las salas activas
+            if (allRooms.size > 0) {
+              console.log(`🏠 [WS] Todas las salas activas:`);
+              allRooms.forEach((socketSet, roomName) => {
+                const isUserRoom = roomName === `user-${user.id}`;
+                const isPrintJobsRoom = roomName === 'print-jobs';
+                let roomType = '';
+                if (isUserRoom) roomType = ' ⭐ USUARIO ACTUAL';
+                else if (isPrintJobsRoom) roomType = ' 📋 GENERAL';
+                else if (roomName.startsWith('user-')) roomType = ' 👤 OTRO USUARIO';
+
+                console.log(`   🏠 "${roomName}": ${socketSet.size} socket(s)${roomType}`);
+              });
+            }
+
+            console.log(`👤 [WS] Sala user-${user.id} existe: ${!!userRoom}, tamaño: ${userRoom?.size || 0}`);
+            console.log(`📋 [WS] Sala print-jobs existe: ${!!printJobsRoom}, tamaño: ${printJobsRoom?.size || 0}`);
+
+            if (!userRoom || userRoom.size === 0) {
+              console.log(`🚨 [WS] FATAL: Socket ${socket.id} NO está en sala user-${user.id} - reintentando`);
+              socket.join(`user-${user.id}`);
+              socket.join('print-jobs');
+            }
+          }, 100);
           console.log(`📊 [WS] Clientes conectados ahora: ${connectedClients.size}`);
           console.log(`🚀 [WS] NOTIFICACIONES DIRIGIDAS HABILITADAS`);
           // NUEVO: Agregar usuario a tracking activo
@@ -231,19 +290,28 @@ export function setupWebSocket(httpServer: HTTPServer) {
       socket.emit('heartbeat-ack', { timestamp: Date.now() });
     });
 
-    // Desconexión con limpieza completa
+    // Desconexión con limpieza completa y logging detallado
     socket.on('disconnect', (reason) => {
       const userId = connectedClients.get(socket.id);
+      console.log(`🚨 [WS] ========== DESCONEXIÓN DETECTADA ==========`);
+      console.log(`🔌 [WS] Socket ID: ${socket.id}`);
+      console.log(`👤 [WS] Usuario: ${userId || 'DESCONOCIDO'}`);
+      console.log(`❌ [WS] Razón: ${reason}`);
+      console.log(`⏰ [WS] Timestamp: ${new Date().toISOString()}`);
+      console.log(`📊 [WS] Sockets antes de desconexión: ${connectedClients.size}`);
+
       if (userId) {
         connectedClients.delete(socket.id);
         globalUserSockets.delete(userId);
-        console.log(`🔌 [WS] Cliente desconectado: ${socket.id} - Usuario: ${userId} (${reason})`);
         console.log(`🧹 [WS] Mapeos limpiados para usuario ${userId}`);
         activeUsers.delete(userId);
 
         // NUEVO: Broadcastear estadísticas actualizadas
         broadcastUserStats();
       }
+
+      console.log(`📊 [WS] Sockets después de desconexión: ${connectedClients.size}`);
+      console.log(`🔍 [WS] ========== FIN DESCONEXIÓN ==========`);
     });
   });
 
@@ -298,29 +366,82 @@ export function setupWebSocket(httpServer: HTTPServer) {
     }
   };
 
-  // Monitoreo de salud del WebSocket
+  // Monitoreo de salud del WebSocket con análisis detallado
   setInterval(() => {
     const rooms = io.sockets.adapter.rooms;
+    const allSockets = io.sockets.sockets;
     const printJobsRoom = rooms.get('print-jobs');
     const clientCount = printJobsRoom?.size || 0;
 
-    console.log(`💚 [WS] ========== ESTADO DEL WEBSOCKET ==========`);
-    console.log(`👥 [WS] Clientes en sala 'print-jobs': ${clientCount}`);
-    console.log(`🔌 [WS] Total conexiones: ${connectedClients.size}`);
-    console.log(`👤 [WS] Usuarios mapeados: ${globalUserSockets.size}`);
+    console.log(`💚 [WS] ========== MONITOREO PERIÓDICO DEL WEBSOCKET ==========`);
+    console.log(`⏰ [WS] Timestamp: ${new Date().toISOString()}`);
+    console.log(`📊 [WS] Resumen general:`);
+    console.log(`   🔌 Total sockets conectados: ${allSockets.size}`);
+    console.log(`   🏠 Total salas activas: ${rooms.size}`);
+    console.log(`   👥 Clientes en sala 'print-jobs': ${clientCount}`);
+    console.log(`   🗺️ Usuarios mapeados en globalUserSockets: ${globalUserSockets.size}`);
+    console.log(`   📊 Usuarios activos tracked: ${activeUsers.size}`);
 
-    if (globalUserSockets.size > 0) {
-      console.log(`📋 [WS] Usuarios conectados:`);
-      globalUserSockets.forEach((socketId, userId) => {
-        const socketExists = io.sockets.sockets.get(socketId) ? 'ACTIVO' : 'INACTIVO';
-        console.log(`   - Usuario ${userId}: Socket ${socketId} (${socketExists})`);
+    // Mostrar todas las salas activas con detalles
+    if (rooms.size > 0) {
+      console.log(`🏠 [WS] Análisis detallado de salas:`);
+      rooms.forEach((socketSet, roomName) => {
+        const socketIds = Array.from(socketSet);
+        let roomType = '';
+
+        if (roomName === 'print-jobs') {
+          roomType = ' 📋 SALA GENERAL';
+        } else if (roomName.startsWith('user-')) {
+          const userId = roomName.replace('user-', '');
+          roomType = ` 👤 USUARIO ${userId}`;
+        } else {
+          roomType = ' ❓ DESCONOCIDA';
+        }
+
+        console.log(`   🏠 "${roomName}": ${socketSet.size} socket(s)${roomType}`);
+
+        // Verificar estado de sockets en la sala
+        socketIds.forEach(socketId => {
+          const socket = allSockets.get(socketId);
+          const status = socket ? (socket.connected ? 'CONECTADO' : 'DESCONECTADO') : 'NO_EXISTE';
+          console.log(`      🔌 ${socketId}: ${status}`);
+        });
       });
     } else {
-      console.log(`⚠️ [WS] NO HAY USUARIOS CONECTADOS - Los trabajos se procesarán por polling`);
-      if (activeUsers.size > 0) {
-        broadcastUserStats();
-      }
+      console.log(`❌ [WS] NO HAY SALAS ACTIVAS`);
     }
+
+    // Mostrar mapeo de usuarios
+    if (globalUserSockets.size > 0) {
+      console.log(`🗺️ [WS] Mapeo de usuarios a sockets:`);
+      globalUserSockets.forEach((socketId, userId) => {
+        const socket = allSockets.get(socketId);
+        const socketExists = socket ? 'EXISTE' : 'NO_EXISTE';
+        const socketConnected = socket?.connected ? 'CONECTADO' : 'DESCONECTADO';
+        const userRoom = rooms.get(`user-${userId}`);
+        const inUserRoom = userRoom && userRoom.has(socketId) ? 'EN_SALA' : 'NO_EN_SALA';
+
+        console.log(`   👤 Usuario ${userId} -> Socket ${socketId}:`);
+        console.log(`      📍 Estado: ${socketExists}, ${socketConnected}, ${inUserRoom}`);
+        if (socket) {
+          const socketRooms = Array.from(socket.rooms);
+          console.log(`      🏠 Salas: [${socketRooms.join(', ')}]`);
+        }
+      });
+    } else {
+      console.log(`⚠️ [WS] NO HAY USUARIOS MAPEADOS - Los trabajos se procesarán por polling`);
+    }
+
+    // Verificar consistencia entre usuarios activos y sockets
+    if (activeUsers.size !== globalUserSockets.size) {
+      console.log(`⚠️ [WS] INCONSISTENCIA: activeUsers (${activeUsers.size}) != globalUserSockets (${globalUserSockets.size})`);
+    }
+
+    if (activeUsers.size > 0) {
+      broadcastUserStats();
+    }
+
+    console.log(`💚 [WS] ========== FIN MONITOREO PERIÓDICO ==========`);
   }, 30000);
 
   // Configurar función global con la función robusta

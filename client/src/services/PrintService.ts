@@ -88,14 +88,25 @@ class PrintService {
         reconnectionDelay: 1000,
         timeout: 20000,
         autoConnect: true,
-        forceNew: true // Forzar nueva conexión
+        forceNew: false, // NO forzar nueva conexión
+        transports: ['polling'], // SOLO polling para evitar conflictos WebSocket
+        upgrade: false // NO hacer upgrade - mantener solo polling
       });
 
       this.setupEventListeners();
       this.isInitialized = true;
       this.reconnectAttempts = 0;
 
+      // Exponer socket globalmente para debugging
+      (window as any).printService = this;
+      console.log('🔧 [DEBUG] PrintService expuesto globalmente como window.printService');
+
       console.log('✅ SERVICIO DE IMPRESIÓN INICIALIZADO CORRECTAMENTE');
+
+      // Debug periódico del estado del socket
+      setInterval(() => {
+        console.log(`🔍 [SOCKET-STATUS] Socket ID: ${this.socket?.id}, Conectado: ${this.socket?.connected}, Usuario: ${this.currentUserId}`);
+      }, 30000);
 
       // Iniciar sistema de polling automático
       this.startPolling();
@@ -156,53 +167,61 @@ class PrintService {
       }
     });
 
-    // Listener para nuevos trabajos de impresión - SIMPLIFICADO PARA DEBUG
-    this.socket.off('new-print-job'); 
-    this.socket.on('new-print-job', (jobData: any) => { // Usar 'any' temporalmente
-      console.log('*****************************************************');
-      console.log(`EVENTO 'new-print-job' LLEGÓ AL CLIENTE (listener principal SIMPLIFICADO)!`);
-      console.log('DATOS RECIBIDOS:', JSON.stringify(jobData, null, 2));
-      console.log('ID DEL SOCKET ACTUAL DEL CLIENTE:', this.socket?.id);
-      console.log('*****************************************************');
+    // Debug temporal - agregar ANTES del listener new-print-job
+    console.log('🔧 [DEBUG] Configurando listener new-print-job...');
+    this.socket.onAny((eventName, ...args) => {
+      console.log(`📡 [DEBUG] Evento recibido: ${eventName}`, args);
+    });
 
-      // LÓGICA ORIGINAL COMENTADA:
-      // console.log(`🎯 [PRINTSERVICE] ========== NUEVO TRABAJO RECIBIDO (listener principal) ==========`);
-      // console.log(`⏰ [PRINTSERVICE] Timestamp: ${new Date().toISOString()}`);
-      // console.log(`🔌 [PRINTSERVICE] Socket ID: ${this.socket?.id}`);
-      // console.log(`👤 [PRINTSERVICE] Usuario actual (en el momento del evento): ${this.currentUserId}`);
-      // console.log(`📋 [PRINTSERVICE] ID: ${job.id}`);
-      // console.log(`📄 [PRINTSERVICE] Documento: ${job.documentName}`);
-      // console.log(`📊 [PRINTSERVICE] Estado: ${job.status}`);
-      // console.log(`🎯 [PRINTSERVICE] Target Usuario (del job): ${job.targetUserId || 'NO ESPECIFICADO'}`);
-      // if (!this.currentUserId) {
-      //   console.warn(`⚠️ [PRINTSERVICE] Usuario actual no establecido (currentUserId: ${this.currentUserId}). El trabajo ${job.id} podría no ser procesado correctamente si requiere filtrado de usuario. Intentando autenticar...`);
-      //   this.authenticateSocket();
-      // }
-      // if (!isQzTrayConnected()) {
-      //   console.log(`⚠️ [PRINTSERVICE] QZ Tray no conectado para trabajo ${job.id}. Intentando reconectar QZ Tray...`);
-      //   try {
-      //     const reconnected = await initQzTray();
-      //     if (!reconnected) {
-      //       console.error(`❌ [PRINTSERVICE] No se pudo reconectar QZ Tray para trabajo ${job.id}. El trabajo no se procesará por WebSocket.`);
-      //       return;
-      //     }
-      //     console.log(`✅ [PRINTSERVICE] QZ Tray reconectado exitosamente.`);
-      //   } catch (error) {
-      //     console.error(`❌ [PRINTSERVICE] Error reconectando QZ Tray:`, error);
-      //     return;
-      //   }
-      // }
-      // if (job.targetUserId && this.currentUserId && job.targetUserId !== this.currentUserId) {
-      //   console.log(`⏭️ [PRINTSERVICE] Trabajo ${job.id} ignorado: no es para este usuario (target: ${job.targetUserId}, actual: ${this.currentUserId})`);
-      //   return;
-      // }
-      // this.socket?.emit('job-received', {jobId: job.id, status: 'received_by_client', timestamp: Date.now()});
-      // if (job.status === 'ready_for_client') {
-      //   console.log(`✅ [PRINTSERVICE] Trabajo ${job.id} está 'ready_for_client'. Iniciando procesamiento inmediato.`);
-      //   await this.processJobImmediately(job);
-      // } else {
-      //   console.log(`⏭️ [PRINTSERVICE] Trabajo ${job.id} no está 'ready_for_client' (estado actual: ${job.status}). No se procesará inmediatamente por WebSocket. Esperando polling o actualización de estado.`);
-      // }
+    // Listener para nuevos trabajos de impresión - FUNCIONAL COMPLETO
+    this.socket.off('new-print-job'); 
+    this.socket.on('new-print-job', async (job: PrintJob) => {
+      console.log(`🎯 [WEBSOCKET] ========== NUEVO TRABAJO RECIBIDO VIA WEBSOCKET ==========`);
+      console.log(`⏰ [WEBSOCKET] Timestamp: ${new Date().toISOString()}`);
+      console.log(`🔌 [WEBSOCKET] Socket ID: ${this.socket?.id}`);
+      console.log(`👤 [WEBSOCKET] Usuario actual: ${this.currentUserId}`);
+      console.log(`📋 [WEBSOCKET] ID: ${job.id}`);
+      console.log(`📄 [WEBSOCKET] Documento: ${job.documentName}`);
+      console.log(`📊 [WEBSOCKET] Estado: ${job.status}`);
+      console.log(`🖨️ [WEBSOCKET] Impresora: ${job.printerName}`);
+
+      // Verificar autenticación
+      if (!this.currentUserId) {
+        console.warn(`⚠️ [WEBSOCKET] Usuario no autenticado - reintentando autenticación`);
+        this.authenticateSocket();
+        return;
+      }
+
+      // Verificar QZ Tray
+      if (!isQzTrayConnected()) {
+        console.log(`⚠️ [WEBSOCKET] QZ Tray no conectado - intentando reconectar`);
+        try {
+          const reconnected = await initQzTray();
+          if (!reconnected) {
+            console.error(`❌ [WEBSOCKET] No se pudo reconectar QZ Tray para trabajo ${job.id}`);
+            return;
+          }
+          console.log(`✅ [WEBSOCKET] QZ Tray reconectado exitosamente`);
+        } catch (error) {
+          console.error(`❌ [WEBSOCKET] Error reconectando QZ Tray:`, error);
+          return;
+        }
+      }
+
+      // Confirmar recepción del job
+      this.socket?.emit('job-received', {
+        jobId: job.id, 
+        status: 'received_by_client', 
+        timestamp: Date.now()
+      });
+
+      // Procesar si está listo
+      if (job.status === 'ready_for_client') {
+        console.log(`🚀 [WEBSOCKET] Trabajo ${job.id} listo - procesando inmediatamente`);
+        await this.processJobImmediately(job);
+      } else {
+        console.log(`⏭️ [WEBSOCKET] Trabajo ${job.id} no listo (estado: ${job.status}) - esperando`);
+      }
     });
     console.log(`✅ [PRINTSERVICE] Listener principal para 'new-print-job' configurado.`);
 
@@ -282,28 +301,71 @@ class PrintService {
     });
 
     // Listener catch-all para debugging - captura TODOS los eventos
-    // Listener catch-all para debugging - captura TODOS los eventos
     this.socket.onAny((eventName, ...args) => {
       console.log(`🔍 [SOCKET-DEBUG] ========== EVENTO RECIBIDO ==========`);
       console.log(`📣 [SOCKET-DEBUG] Evento: ${eventName}`);
-      console.log(`📦 [SOCKET-DEBUG] Argumentos:`, args);
       console.log(`🕐 [SOCKET-DEBUG] Timestamp: ${new Date().toISOString()}`);
       console.log(`🔌 [SOCKET-DEBUG] Socket ID: ${this.socket?.id}`);
       console.log(`👤 [SOCKET-DEBUG] Usuario actual: ${this.currentUserId}`);
+      console.log(`🔗 [SOCKET-DEBUG] Socket conectado: ${this.socket?.connected}`);
 
+      // Log detallado de argumentos
+      if (args.length > 0) {
+        console.log(`📦 [SOCKET-DEBUG] Argumentos (${args.length}):`);
+        args.forEach((arg, index) => {
+          if (typeof arg === 'object' && arg !== null) {
+            // Para objetos, mostrar propiedades principales
+            const keys = Object.keys(arg);
+            console.log(`   [${index}] Objeto con ${keys.length} propiedades: {${keys.slice(0, 5).join(', ')}${keys.length > 5 ? '...' : ''}}`);
+
+            // Si es un job, mostrar detalles específicos
+            if (arg.id && arg.documentName) {
+              console.log(`       📄 Job ID: ${arg.id}, Documento: ${arg.documentName}, Estado: ${arg.status}`);
+            }
+          } else {
+            console.log(`   [${index}] ${typeof arg}: ${arg}`);
+          }
+        });
+      } else {
+        console.log(`📦 [SOCKET-DEBUG] Sin argumentos`);
+      }
+
+      // Análisis especial para eventos de print jobs
       if (eventName === 'new-print-job') {
-        console.log(`⚠️ [SOCKET-DEBUG] EVENTO new-print-job DETECTADO EN CATCH-ALL!`);
-        console.log(`📋 [SOCKET-DEBUG] ¿Por qué no lo procesó el listener específico?`);
-        console.log(`🔥 [SOCKET-DEBUG] FORZANDO PROCESAMIENTO MANUAL:`, args[0]);
+        console.log(`🎯 [SOCKET-DEBUG] ========== EVENTO new-print-job DETECTADO ==========`);
+        console.log(`⚠️ [SOCKET-DEBUG] Este evento debería ser procesado por el listener específico`);
+        console.log(`🔍 [SOCKET-DEBUG] Verificando si hay listener específico registrado...`);
 
-        // FORZAR procesamiento manual
         const job = args[0];
-        if (job && job.status === 'ready_for_client') {
-          console.log(`🚀 [SOCKET-DEBUG] PROCESANDO TRABAJO FORZADO ${job.id}`);
-          this.processJobImmediately(job).catch(error => {
-            console.error(`❌ [SOCKET-DEBUG] Error en procesamiento forzado:`, error);
-          });
+        if (job) {
+          console.log(`📋 [SOCKET-DEBUG] Datos del job:`);
+          console.log(`   ID: ${job.id}`);
+          console.log(`   Documento: ${job.documentName}`);
+          console.log(`   Estado: ${job.status}`);
+          console.log(`   Impresora: ${job.printerName}`);
+          console.log(`   Tiene datos QZ: ${!!job.qzTrayData}`);
+
+          if (job.status === 'ready_for_client') {
+            console.log(`🚀 [SOCKET-DEBUG] Job listo para procesar - verificando si se procesó por listener específico`);
+
+            // Dar tiempo al listener específico, luego verificar si se procesó
+            setTimeout(() => {
+              if (!this.processedJobs.has(job.id) && !this.processingJobs.has(job.id)) {
+                console.log(`❌ [SOCKET-DEBUG] Job ${job.id} NO fue procesado por listener específico - FORZANDO`);
+                this.processJobImmediately(job).catch(error => {
+                  console.error(`❌ [SOCKET-DEBUG] Error en procesamiento forzado:`, error);
+                });
+              } else {
+                console.log(`✅ [SOCKET-DEBUG] Job ${job.id} fue procesado correctamente por listener específico`);
+              }
+            }, 1000);
+          }
         }
+      }
+
+      // Log de otros eventos importantes
+      if (['authenticated', 'connect', 'disconnect', 'connection-verified'].includes(eventName)) {
+        console.log(`🔥 [SOCKET-DEBUG] Evento importante detectado: ${eventName}`);
       }
     });
   }

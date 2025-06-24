@@ -52,7 +52,7 @@ function extractApiKey(authHeader: string): string {
   // Intentamos extraer la parte después de "Bearer "
   const match = authHeader.match(/^bearer\s+(.+)$/i);
   if (match && match[1]) {
-    console.log("API key extracted from Bearer token");
+    // console.log("API key extracted from Bearer token"); // Comentado para reducir logs
     return match[1];
   }
 
@@ -64,7 +64,7 @@ function extractApiKey(authHeader: string): string {
 // Helper para validar API key y devolver usuario
 async function validateApiKey(req: Request, res: Response) {
   try {
-    console.log("Headers recibidos:", req.headers);
+    // console.log("Headers recibidos:", req.headers); // Comentado para reducir logs
 
     // Verificamos si hay un header de Authorization
     if (!req.headers.authorization) {
@@ -79,7 +79,7 @@ async function validateApiKey(req: Request, res: Response) {
 
     // Extraemos la API key
     const apiKey = extractApiKey(authorization);
-    console.log("API key extraída:", apiKey ? `${apiKey.substring(0, 5)}...` : "Vacía");
+    // console.log("API key extraída:", apiKey ? `${apiKey.substring(0, 5)}...` : "Vacía"); // Comentado para reducir logs
 
     if (!apiKey) {
       console.log("API key extraída está vacía");
@@ -88,7 +88,7 @@ async function validateApiKey(req: Request, res: Response) {
     }
 
     // Buscamos el usuario por API key
-    console.log("Buscando usuario con API key:", apiKey.substring(0, 5) + "...");
+    // console.log("Buscando usuario con API key:", apiKey.substring(0, 5) + "..."); // Comentado para reducir logs
     const user = await storage.getUserByApiKey(apiKey);
 
     if (!user) {
@@ -940,8 +940,148 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log(`🔌 [BASE64-NOTIF] Socket ID obtenido: ${userSocketId || 'NINGUNO'}`);
 
         if (userSocketId) {
-          socketServer.to(userSocketId).emit('new-print-job', jobData);
-          console.log(`📡 [BASE64-NOTIF] ✅ Trabajo Base64 ${printJob.id} notificado EXITOSAMENTE al usuario ${user.username}`);
+          // DEBUG CRÍTICO: Examinar todos los sockets activos
+          console.log(`🔍 [CRITICAL-DEBUG] ========== ANÁLISIS COMPLETO DE SOCKETS ==========`);
+          console.log(`🎯 [CRITICAL-DEBUG] Socket objetivo: ${userSocketId}`);
+          console.log(`📊 [CRITICAL-DEBUG] Total sockets en servidor: ${socketServer.sockets.sockets.size}`);
+
+          // Listar TODOS los sockets activos
+          console.log(`📋 [CRITICAL-DEBUG] Sockets activos:`);
+          socketServer.sockets.sockets.forEach((socket, id) => {
+            console.log(`   - ${id}: conectado=${socket.connected}, salas=[${Array.from(socket.rooms).join(', ')}]`);
+          });
+
+          // Verificar salas del servidor
+          console.log(`🏠 [CRITICAL-DEBUG] Salas activas:`);
+          socketServer.sockets.adapter.rooms.forEach((sockets, roomName) => {
+            console.log(`   - ${roomName}: ${sockets.size} socket(s) [${Array.from(sockets).join(', ')}]`);
+          });
+
+          console.log(`🚀 [BASE64-NOTIF] Enviando evento 'new-print-job' a socket ${userSocketId}`);
+          // Crear versión simplificada para logging (sin Base64 completo)
+          const jobDataForLogging = {
+            ...jobData,
+            qzTrayData: {
+              ...jobData.qzTrayData,
+              data: jobData.qzTrayData.data.map((item: any) => ({
+                ...item,
+                data: item.data ? `${item.data.substring(0, 10)}...` : item.data
+              }))
+            }
+          };
+          console.log(`📦 [BASE64-NOTIF] Evento simplificado:`, JSON.stringify(jobDataForLogging, null, 2));
+
+          // ========== ANÁLISIS DETALLADO DE WEBSOCKET ==========
+          console.log(`🔍 [WEBSOCKET-ANALYSIS] ========== ESTADO COMPLETO DEL WEBSOCKET ==========`);
+
+          // Estado global
+          const allSockets = socketServer.sockets.sockets;
+          const allRooms = socketServer.sockets.adapter.rooms;
+
+          console.log(`📊 [WEBSOCKET-ANALYSIS] Resumen global:`);
+          console.log(`   🔌 Total sockets conectados: ${allSockets.size}`);
+          console.log(`   🏠 Total salas activas: ${allRooms.size}`);
+          console.log(`   👤 Usuario objetivo: ${user.username} (ID: ${user.id})`);
+          console.log(`   📄 Trabajo: ${printJob.documentName} (ID: ${printJob.id})`);
+
+          // Mostrar todos los sockets activos
+          if (allSockets.size > 0) {
+            console.log(`🔌 [WEBSOCKET-ANALYSIS] Sockets activos:`);
+            allSockets.forEach((socket, socketId) => {
+              const socketRooms = Array.from(socket.rooms);
+              const isUserSocket = socketId === userSocketId;
+              console.log(`   ${isUserSocket ? '👤' : '🔌'} Socket ${socketId}: conectado=${socket.connected}, salas=[${socketRooms.join(', ')}]${isUserSocket ? ' ⭐ USUARIO OBJETIVO' : ''}`);
+            });
+          } else {
+            console.log(`❌ [WEBSOCKET-ANALYSIS] NO HAY SOCKETS CONECTADOS`);
+          }
+
+          // Mostrar todas las salas activas
+          if (allRooms.size > 0) {
+            console.log(`🏠 [WEBSOCKET-ANALYSIS] Salas activas:`);
+            allRooms.forEach((socketSet, roomName) => {
+              const socketIds = Array.from(socketSet);
+              const isUserRoom = roomName === `user-${user.id}`;
+              const isPrintJobsRoom = roomName === 'print-jobs';
+              let roomType = '';
+              if (isUserRoom) roomType = ' ⭐ SALA USUARIO OBJETIVO';
+              else if (isPrintJobsRoom) roomType = ' 📋 SALA GENERAL';
+
+              console.log(`   🏠 Sala "${roomName}": ${socketSet.size} socket(s) [${socketIds.join(', ')}]${roomType}`);
+            });
+          } else {
+            console.log(`❌ [WEBSOCKET-ANALYSIS] NO HAY SALAS ACTIVAS`);
+          }
+
+          // NUEVA ESTRATEGIA: Enviar SIEMPRE a la sala del usuario (más confiable)
+          const userRoomName = `user-${user.id}`;
+          console.log(`🎯 [BASE64-NOTIF] ========== ESTRATEGIA DE ENVÍO ==========`);
+          console.log(`🎯 [BASE64-NOTIF] Enviando a sala ${userRoomName} (estrategia de sala)`);
+
+          // Verificar que la sala existe
+          const userRoom = socketServer.sockets.adapter.rooms.get(userRoomName);
+
+          if (userRoom && userRoom.size > 0) {
+            const socketIds = Array.from(userRoom);
+            console.log(`✅ [BASE64-NOTIF] Sala ${userRoomName} encontrada con ${userRoom.size} socket(s)`);
+            console.log(`🔍 [BASE64-NOTIF] Sockets en sala: [${socketIds.join(', ')}]`);
+
+            // Verificar estado de cada socket en la sala
+            socketIds.forEach(socketId => {
+              const socket = allSockets.get(socketId);
+              if (socket) {
+                console.log(`   ✅ Socket ${socketId}: EXISTE, conectado=${socket.connected}`);
+                if (!socket.connected) {
+                  console.log(`   ⚠️ Socket ${socketId}: ESTÁ DESCONECTADO - puede causar problemas`);
+                }
+              } else {
+                console.log(`   ❌ Socket ${socketId}: NO EXISTE en sockets activos - sala obsoleta`);
+              }
+            });
+
+            socketServer.to(userRoomName).emit('new-print-job', jobData);
+            console.log(`📡 [BASE64-NOTIF] ✅ Trabajo ${printJob.id} enviado EXITOSAMENTE a sala ${userRoomName}`);
+
+          } else {
+            console.log(`❌ [BASE64-NOTIF] Sala ${userRoomName} no existe o está vacía`);
+
+            // Buscar salas relacionadas con el usuario
+            console.log(`🔍 [BASE64-NOTIF] Buscando salas relacionadas con usuario ${user.id}...`);
+            const relatedRooms = [];
+            allRooms.forEach((socketSet, roomName) => {
+              if (roomName.includes(user.id.toString()) || roomName.includes(user.username)) {
+                relatedRooms.push({ name: roomName, size: socketSet.size, sockets: Array.from(socketSet) });
+              }
+            });
+
+            if (relatedRooms.length > 0) {
+              console.log(`🔍 [BASE64-NOTIF] Salas relacionadas encontradas:`, relatedRooms);
+            } else {
+              console.log(`❌ [BASE64-NOTIF] NO se encontraron salas relacionadas con usuario ${user.id}`);
+            }
+
+            console.log(`🔄 [BASE64-NOTIF] Intentando envío directo al socket ${userSocketId} como fallback`);
+
+            // Fallback: envío directo (método original)
+            const socket = socketServer.sockets.sockets.get(userSocketId);
+            if (socket && socket.connected) {
+              console.log(`✅ [BASE64-NOTIF] Socket ${userSocketId} encontrado y conectado - enviando directo`);
+              socketServer.to(userSocketId).emit('new-print-job', jobData);
+              console.log(`📡 [BASE64-NOTIF] ✅ Trabajo ${printJob.id} enviado como fallback directo`);
+            } else {
+              console.log(`❌ [BASE64-NOTIF] Socket ${userSocketId} no existe o está desconectado`);
+
+              // Último recurso: broadcast a sala general
+              const printJobsRoom = allRooms.get('print-jobs');
+              if (printJobsRoom && printJobsRoom.size > 0) {
+                console.log(`🔄 [BASE64-NOTIF] Enviando a sala 'print-jobs' como último recurso`);
+                socketServer.to('print-jobs').emit('new-print-job', jobData);
+                console.log(`📡 [BASE64-NOTIF] ⚠️ Trabajo ${printJob.id} enviado a sala general 'print-jobs'`);
+              } else {
+                console.log(`💀 [BASE64-NOTIF] FATAL: Ningún método de envío funcionó. Trabajo procesado por polling.`);
+              }
+            }
+          }
         } else {
           console.log(`⚠️ [BASE64-NOTIF] ❌ Usuario ${user.username} NO CONECTADO VIA WEBSOCKET`);
           console.log(`🔄 [BASE64-NOTIF] Trabajo ${printJob.id} se procesará por polling (modo fallback)`);
@@ -1104,7 +1244,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       });
 
-     
+
 
   // QZ Tray disconnection endpoint
   app.post("/api/printers/:uniqueId/disconnect", async (req, res) => {
