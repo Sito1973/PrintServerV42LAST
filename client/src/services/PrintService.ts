@@ -88,9 +88,11 @@ class PrintService {
         reconnectionDelay: 1000,
         timeout: 20000,
         autoConnect: true,
-        forceNew: false, // NO forzar nueva conexión
-        transports: ['polling'], // SOLO polling para evitar conflictos WebSocket
-        upgrade: false // NO hacer upgrade - mantener solo polling
+        forceNew: false,
+        transports: ['websocket', 'polling'], // Permitir websocket y polling
+        upgrade: true, // Permitir upgrade a websocket
+        rememberUpgrade: true, // Recordar el upgrade para siguientes conexiones
+        closeOnBeforeunload: false // Mantener conexión activa al cambiar ventanas
       });
 
       this.setupEventListeners();
@@ -443,22 +445,28 @@ class PrintService {
 
   // Método para mantener la conexión activa
   startKeepAlive() {
-    // Ping cada 30 segundos para mantener conexión
+    // Ping cada 30 segundos para mantener conexión SIEMPRE
     setInterval(() => {
       if (this.socket?.connected) {
         this.socket.emit('ping');
       }
     }, 30000);
 
-    // Verificar visibilidad de la página
+    // Verificar visibilidad de la página - SOLO para logging, no para reinicializar
     document.addEventListener('visibilitychange', () => {
-      if (!document.hidden && !this.isInitialized) {
-        console.log('📱 Página visible de nuevo, reinicializando servicio...');
-        this.initialize();
+      if (document.hidden) {
+        console.log('👁️ Página oculta - websocket debe seguir funcionando');
+      } else {
+        console.log('👁️ Página visible - websocket activo');
+        // Solo reinicializar si realmente no está inicializado
+        if (!this.isInitialized) {
+          console.log('📱 Página visible y servicio no inicializado, reinicializando...');
+          this.initialize();
+        }
       }
     });
 
-    // Verificar conexión periódicamente
+    // Verificar conexión periódicamente - INDEPENDIENTE de visibilidad
     setInterval(() => {
       if (this.isInitialized && (!this.socket || !this.socket.connected)) {
         console.log('🔄 Conexión perdida, reintentando...');
@@ -575,7 +583,7 @@ class PrintService {
     }
 
     console.log('🚀 ========== INICIANDO SISTEMA DE POLLING AUTOMÁTICO ==========');
-    console.log('⚡ Revisando trabajos pendientes cada 10 segundos');
+    console.log('⚡ Revisando trabajos pendientes cada 20 segundos (backup del websocket)');
 
     this.isPollingActive = true;
 
@@ -585,7 +593,7 @@ class PrintService {
       } catch (error) {
         console.error('❌ Error en polling:', error);
       }
-    }, 5000); // Cambiado de 500ms a 5000ms (5 segundos)
+    }, 20000); // 3 segundos para backup rápido del websocket
   }
 
   private async checkPendingJobs() {

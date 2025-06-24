@@ -119,52 +119,20 @@ app.use((req, res, next) => {
 
   const server = await registerRoutes(app);
 
-  // Setup Socket.IO
-  const io = new SocketIOServer(server, {
-    cors: {
-      origin: true,
-      credentials: true
-    }
-  });
-
-  // Setup WebSocket with user mapping
+  // Setup WebSocket with user mapping - ÚNICA CONFIGURACIÓN
   const { setupWebSocket } = await import("./websocket");
-  const { emitPrintJobToUser, getUserSocket } = setupWebSocket(server);
+  const { io, emitPrintJobToUser, getUserSocket } = setupWebSocket(server);
 
-  // Exponer función para acceder a sockets de usuarios
+  // Exponer funciones globales para acceso desde rutas
   (global as any).getUserSocket = getUserSocket;
   (global as any).emitPrintJobToUser = emitPrintJobToUser;
+  (global as any).io = io;
 
   // Import and setup socket integration with routes
   const { setupSocketIntegration } = await import("./routes");
   setupSocketIntegration(io);
 
-  // WebSocket connection handling
-  io.on('connection', (socket) => {
-    console.log(`🔗 Cliente WebSocket conectado: ${socket.id}`);
-
-    socket.on('subscribe-print-jobs', () => {
-      console.log(`📋 Cliente ${socket.id} suscrito a trabajos de impresión`);
-      socket.join('print-jobs');
-    });
-
-    socket.on('job-completed', (jobId) => {
-      console.log(`✅ Cliente reportó trabajo ${jobId} completado`);
-    });
-
-    socket.on('job-failed', (data) => {
-      console.log(`❌ Cliente reportó trabajo ${data.id} fallido: ${data.error}`);
-    });
-
-    socket.on('disconnect', () => {
-      console.log(`🔗 Cliente WebSocket desconectado: ${socket.id}`);
-    });
-  });
-
   console.log('🚀 WebSocket server configurado para notificaciones inmediatas');
-
-  // Export io for use in routes
-  (global as any).io = io;
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
