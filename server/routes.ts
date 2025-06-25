@@ -43,7 +43,7 @@ export function setSocketServer(io: SocketIOServer) {
 
 // Helper to extract API key from Authorization header
 function extractApiKey(authHeader: string): string {
-  console.log("Extracting API key from:", authHeader);
+  // console.log("Extracting API key from:", authHeader);
   if (!authHeader) {
     console.log("Authorization header is empty");
     return '';
@@ -75,7 +75,7 @@ async function validateApiKey(req: Request, res: Response) {
 
     // Usamos validación zod
     const { authorization } = apiKeyHeaderSchema.parse(req.headers);
-    console.log("Authorization header validado:", authorization);
+    // console.log("Authorization header validado:", authorization);
 
     // Extraemos la API key
     const apiKey = extractApiKey(authorization);
@@ -97,7 +97,7 @@ async function validateApiKey(req: Request, res: Response) {
       return null;
     }
 
-    console.log("Usuario encontrado:", user.username);
+    // console.log("Usuario encontrado:", user.username);
     return user;
   } catch (error) {
     console.error("Error al validar API key:", error);
@@ -194,11 +194,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         lastActivity: activeUser.lastActivity
       }));
 
-      console.log(`📊 [STATS] Estadísticas solicitadas por ${user.username}`);
-      console.log(`📊 [STATS] Usuarios activos (WebSocket): ${activeUsersCount}`);
-      console.log(`📊 [STATS] Lista usuarios activos: [${activeUsersList.map(u => u.username).join(', ')}]`);
-      console.log(`📊 [STATS] Impresoras activas: ${activePrinters}/${allPrinters.length}`);
-      console.log(`📊 [STATS] Trabajos hoy: ${jobsToday}`);
+      // console.log(`📊 [STATS] Estadísticas solicitadas por ${user.username}`);
+      // console.log(`📊 [STATS] Usuarios activos (WebSocket): ${activeUsersCount}`);
+      // console.log(`📊 [STATS] Lista usuarios activos: [${activeUsersList.map(u => u.username).join(', ')}]`);
+      // console.log(`📊 [STATS] Impresoras activas: ${activePrinters}/${allPrinters.length}`);
+      // console.log(`📊 [STATS] Trabajos hoy: ${jobsToday}`);
 
       res.json({
         activePrinters,
@@ -1822,23 +1822,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get pending print jobs for current user  
   app.get("/api/print-jobs/pending", async (req, res) => {
     try {
-      console.log(`🔍 [PENDING] ========== CONSULTA DE TRABAJOS PENDIENTES ==========`);
-
       const user = await validateApiKey(req, res);
       if (!user) return;
-
-      console.log(`👤 [PENDING] Usuario: ${user.username} (ID: ${user.id})`);
 
       // Get all jobs for this user
       const allJobs = await storage.listPrintJobs();
       const userJobs = allJobs.filter(job => job.userId === user.id);
 
-      console.log(`📋 [PENDING] Total trabajos del usuario: ${userJobs.length}`);
-
       // Filter jobs that are ready for client
       const pendingJobs = userJobs.filter(job => job.status === 'ready_for_client');
-
-      console.log(`✅ [PENDING] Trabajos listos para cliente: ${pendingJobs.length}`);
 
       // Add printer info to each job
       const jobsWithPrinterInfo = await Promise.all(pendingJobs.map(async (job) => {
@@ -1859,12 +1851,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }));
 
       if (jobsWithPrinterInfo.length > 0) {
-        console.log(`📤 [PENDING] Devolviendo ${jobsWithPrinterInfo.length} trabajos:`);
-        jobsWithPrinterInfo.forEach(job => {
-          console.log(`   - ${job.id}: ${job.documentName} (${job.printerName})`);
-        });
-      } else {
-        console.log(`📭 [PENDING] No hay trabajos pendientes para el usuario`);
+        console.log(`📤 [PENDING] ${jobsWithPrinterInfo.length} trabajos pendientes`);
       }
 
       res.json(jobsWithPrinterInfo);

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { 
@@ -59,12 +59,23 @@ const PrintJobsList: React.FC = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: printJobs, isLoading } = useQuery<PrintJob[]>({
+  const { data: printJobs, isLoading, refetch: refetchJobs } = useQuery<PrintJob[]>({
     queryKey: ['/api/print-jobs'],
     queryFn: () => apiRequest('/api/print-jobs'),
-    staleTime: 15000, // 15 segundos
-    refetchInterval: 30000, // Refresca automáticamente cada 30 segundos (menos agresivo)
+    staleTime: 60000, // Datos válidos por 1 minuto
+    refetchOnWindowFocus: false, // No refrescar automáticamente
+    refetchOnMount: true, // Solo refrescar al montar el componente
   });
+
+  // Función para actualizar manualmente la lista de trabajos
+  const refreshJobs = () => {
+    refetchJobs();
+  };
+
+  // Refrescar datos cuando el componente se monta
+  useEffect(() => {
+    refreshJobs();
+  }, []);
 
   const deleteMutation = useMutation({
     mutationFn: async (jobIds: number[]) => {
@@ -222,7 +233,7 @@ const PrintJobsList: React.FC = () => {
             />
           </div>
         </div>
-        <div className="mt-3 sm:mt-0 sm:ml-4">
+        <div className="mt-3 sm:mt-0 sm:ml-4 flex gap-2">
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Filter by status" />
@@ -235,6 +246,15 @@ const PrintJobsList: React.FC = () => {
               <SelectItem value="failed">Failed</SelectItem>
             </SelectContent>
           </Select>
+          <Button
+            variant="default"
+            size="default"
+            onClick={refreshJobs}
+            disabled={isLoading}
+            className="bg-blue-600 hover:bg-blue-700 text-white transform active:scale-95 transition-transform duration-150"
+          >
+            Actualizar
+          </Button>
         </div>
       </div>
 

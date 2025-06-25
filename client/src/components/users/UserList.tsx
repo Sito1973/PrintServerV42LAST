@@ -162,12 +162,13 @@ const UserList: React.FC = () => {
     refetchInterval: 10000,
   });
 
-  // Query para obtener estadísticas de usuarios activos
-  const { data: stats } = useQuery<StatsResponse>({
-    queryKey: ['/api/stats'],
+  // Query para obtener estadísticas de usuarios activos (solo cuando se necesite)
+  const { data: stats, refetch: refetchStats } = useQuery<StatsResponse>({
+    queryKey: ['/api/stats-users'],
     queryFn: () => apiRequest({ url: '/api/stats' }),
-    refetchInterval: 5000, // Actualizar cada 5 segundos
-    staleTime: 2000,
+    staleTime: 60000, // Datos válidos por 1 minuto
+    refetchOnWindowFocus: false, // No refrescar automáticamente
+    refetchOnMount: true, // Solo refrescar al montar el componente
   });
 
   // Actualizar lista de usuarios activos cuando cambian las estadísticas
@@ -176,6 +177,16 @@ const UserList: React.FC = () => {
       setActiveUsers(stats.activeUsersList);
     }
   }, [stats]);
+
+  // Función para actualizar manualmente los datos de usuarios online
+  const refreshOnlineUsers = () => {
+    refetchStats();
+  };
+
+  // Refrescar datos cuando el componente se monta
+  useEffect(() => {
+    refreshOnlineUsers();
+  }, []);
 
   // Mutation para actualizar usuario
   const updateMutation = useMutation({
@@ -357,6 +368,14 @@ const UserList: React.FC = () => {
               </div>
               <div className="text-xs text-gray-600">Desconectados</div>
             </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={refreshOnlineUsers}
+              className="ml-4"
+            >
+              Actualizar
+            </Button>
           </div>
         </div>
       </div>

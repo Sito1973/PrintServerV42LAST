@@ -105,10 +105,12 @@ class PrintService {
 
       console.log('✅ SERVICIO DE IMPRESIÓN INICIALIZADO CORRECTAMENTE');
 
-      // Debug periódico del estado del socket
+      // Debug periódico del estado del socket (reducido)
       setInterval(() => {
-        console.log(`🔍 [SOCKET-STATUS] Socket ID: ${this.socket?.id}, Conectado: ${this.socket?.connected}, Usuario: ${this.currentUserId}`);
-      }, 30000);
+        if (!this.socket?.connected) {
+          console.log(`⚠️ Socket desconectado`);
+        }
+      }, 300000);
 
       // Iniciar sistema de polling automático
       this.startPolling();
@@ -291,83 +293,31 @@ class PrintService {
 
     // Heartbeat para verificar conexión
     this.socket.on('heartbeat-ack', (data) => {
-      console.log('💓 Heartbeat ACK recibido:', data.timestamp);
+      // Heartbeat silencioso
     });
 
     // Verificación de conexión post-autenticación
     this.socket.on('connection-verified', (data) => {
-      console.log('🧪 ========== VERIFICACIÓN DE CONEXIÓN RECIBIDA ==========');
-      console.log('📡 [PRINTSERVICE] Datos:', data);
-      console.log('✅ [PRINTSERVICE] WebSocket funcionando correctamente para notificaciones');
-      console.log('🎯 [PRINTSERVICE] Sistema listo para recibir trabajos de impresión');
+      console.log('✅ [WS] Conexión verificada - sistema listo');
     });
 
-    // Listener catch-all para debugging - captura TODOS los eventos
+    // Listener simplificado para eventos importantes
     this.socket.onAny((eventName, ...args) => {
-      console.log(`🔍 [SOCKET-DEBUG] ========== EVENTO RECIBIDO ==========`);
-      console.log(`📣 [SOCKET-DEBUG] Evento: ${eventName}`);
-      console.log(`🕐 [SOCKET-DEBUG] Timestamp: ${new Date().toISOString()}`);
-      console.log(`🔌 [SOCKET-DEBUG] Socket ID: ${this.socket?.id}`);
-      console.log(`👤 [SOCKET-DEBUG] Usuario actual: ${this.currentUserId}`);
-      console.log(`🔗 [SOCKET-DEBUG] Socket conectado: ${this.socket?.connected}`);
+      // Solo log eventos importantes
+      if (['authenticated', 'connect', 'disconnect', 'new-print-job'].includes(eventName)) {
+        console.log(`📡 [WS] ${eventName}`);
 
-      // Log detallado de argumentos
-      if (args.length > 0) {
-        console.log(`📦 [SOCKET-DEBUG] Argumentos (${args.length}):`);
-        args.forEach((arg, index) => {
-          if (typeof arg === 'object' && arg !== null) {
-            // Para objetos, mostrar propiedades principales
-            const keys = Object.keys(arg);
-            console.log(`   [${index}] Objeto con ${keys.length} propiedades: {${keys.slice(0, 5).join(', ')}${keys.length > 5 ? '...' : ''}}`);
-
-            // Si es un job, mostrar detalles específicos
-            if (arg.id && arg.documentName) {
-              console.log(`       📄 Job ID: ${arg.id}, Documento: ${arg.documentName}, Estado: ${arg.status}`);
-            }
-          } else {
-            console.log(`   [${index}] ${typeof arg}: ${arg}`);
-          }
-        });
-      } else {
-        console.log(`📦 [SOCKET-DEBUG] Sin argumentos`);
-      }
-
-      // Análisis especial para eventos de print jobs
-      if (eventName === 'new-print-job') {
-        console.log(`🎯 [SOCKET-DEBUG] ========== EVENTO new-print-job DETECTADO ==========`);
-        console.log(`⚠️ [SOCKET-DEBUG] Este evento debería ser procesado por el listener específico`);
-        console.log(`🔍 [SOCKET-DEBUG] Verificando si hay listener específico registrado...`);
-
-        const job = args[0];
-        if (job) {
-          console.log(`📋 [SOCKET-DEBUG] Datos del job:`);
-          console.log(`   ID: ${job.id}`);
-          console.log(`   Documento: ${job.documentName}`);
-          console.log(`   Estado: ${job.status}`);
-          console.log(`   Impresora: ${job.printerName}`);
-          console.log(`   Tiene datos QZ: ${!!job.qzTrayData}`);
-
-          if (job.status === 'ready_for_client') {
-            console.log(`🚀 [SOCKET-DEBUG] Job listo para procesar - verificando si se procesó por listener específico`);
-
-            // Dar tiempo al listener específico, luego verificar si se procesó
+        if (eventName === 'new-print-job') {
+          const job = args[0];
+          if (job?.status === 'ready_for_client') {
+            // Fallback para jobs no procesados
             setTimeout(() => {
               if (!this.processedJobs.has(job.id) && !this.processingJobs.has(job.id)) {
-                console.log(`❌ [SOCKET-DEBUG] Job ${job.id} NO fue procesado por listener específico - FORZANDO`);
-                this.processJobImmediately(job).catch(error => {
-                  console.error(`❌ [SOCKET-DEBUG] Error en procesamiento forzado:`, error);
-                });
-              } else {
-                console.log(`✅ [SOCKET-DEBUG] Job ${job.id} fue procesado correctamente por listener específico`);
+                this.processJobImmediately(job).catch(console.error);
               }
             }, 1000);
           }
         }
-      }
-
-      // Log de otros eventos importantes
-      if (['authenticated', 'connect', 'disconnect', 'connection-verified'].includes(eventName)) {
-        console.log(`🔥 [SOCKET-DEBUG] Evento importante detectado: ${eventName}`);
       }
     });
   }
@@ -510,17 +460,13 @@ class PrintService {
                  sessionStorage.getItem('api_key');
 
     if (apiKey) {
-      console.log(`🔐 ========== INICIANDO AUTENTICACIÓN ==========`);
-      console.log(`🔑 API Key: ${apiKey.substring(0, 8)}...`);
-      console.log(`🔌 Socket ID: ${this.socket?.id}`);
-      console.log(`🔗 Socket conectado: ${this.socket?.connected}`);
+      console.log(`🔐 [WS] Autenticando...`);
 
       this.socket.emit('authenticate', { apiKey });
-      console.log('📡 ✅ Evento de autenticación enviado al servidor');
 
-      // Timeout para verificar autenticación
+      // Timeout para verificar autenticación - SOLO si aún no está autenticado Y conectado
       setTimeout(() => {
-        if (this.currentUserId === null) {
+        if (this.currentUserId === null && this.socket?.connected) {
           console.warn('⚠️ Autenticación no completada en 10 segundos, reintentando...');
           this.authenticateSocket();
         }
@@ -583,7 +529,7 @@ class PrintService {
     }
 
     console.log('🚀 ========== INICIANDO SISTEMA DE POLLING AUTOMÁTICO ==========');
-    console.log('⚡ Revisando trabajos pendientes cada 20 segundos (backup del websocket)');
+    console.log('⚡ Revisando trabajos pendientes cada 3 segundos (backup del websocket)');
 
     this.isPollingActive = true;
 
@@ -593,59 +539,32 @@ class PrintService {
       } catch (error) {
         console.error('❌ Error en polling:', error);
       }
-    }, 20000); // 3 segundos para backup rápido del websocket
+    }, 20000); // 20 segundos para backup del websocket
   }
 
   private async checkPendingJobs() {
-    console.log('🔄 [POLLING] ========== EJECUTANDO POLLING ==========');
-    console.log('🕐 [POLLING] Timestamp:', new Date().toISOString());
-
-    if (!isQzTrayConnected()) {
-      console.log('❌ [POLLING] QZ Tray no conectado, saltando polling');
-      return;
-    }
-
-    console.log('✅ [POLLING] QZ Tray conectado, continuando...');
+    if (!isQzTrayConnected()) return;
 
     try {
       const apiKey = localStorage.getItem('apiKey')|| localStorage.getItem('api_key');
-      if (!apiKey) {
-        console.log('❌ [POLLING] No hay API key, saltando polling');
-        return;
-      }
-
-      console.log('✅ [POLLING] API key disponible, haciendo request...');
+      if (!apiKey) return;
 
       const response = await fetch('/api/print-jobs/pending', {
         headers: { 'Authorization': `Bearer ${apiKey}` }
       });
 
-      console.log(`📊 [POLLING] Response status: ${response.status}`);
-
-      if (!response.ok) {
-        console.error(`❌ [POLLING] Error HTTP: ${response.status}`);
-        return;
-      }
+      if (!response.ok) return;
 
       const jobs = await response.json();
-      console.log(`📋 [POLLING] Trabajos obtenidos:`, jobs);
 
       if (jobs.length > 0) {
-        console.log(`🔥 [POLLING] Encontrados ${jobs.length} trabajos pendientes`);
+        console.log(`🖨️ [POLLING] ${jobs.length} trabajos pendientes`);
 
         for (const job of jobs) {
-          console.log(`🖨️ [POLLING] Evaluando trabajo ${job.id}: ${job.documentName}`);
-          console.log(`📊 [POLLING] Procesado: ${this.processedJobs.has(job.id)}, Procesando: ${this.processingJobs.has(job.id)}`);
-
           if (!this.processedJobs.has(job.id) && !this.processingJobs.has(job.id)) {
-            console.log(`🖨️ [POLLING] Procesando trabajo ${job.id}: ${job.documentName}`);
             await this.processJobImmediately(job);
-          } else {
-            console.log(`⏭️ [POLLING] Trabajo ${job.id} ya procesado o en proceso`);
           }
         }
-      } else {
-        console.log('📭 [POLLING] No hay trabajos pendientes');
       }
     } catch (error) {
       console.error('❌ [POLLING] Error:', error);
