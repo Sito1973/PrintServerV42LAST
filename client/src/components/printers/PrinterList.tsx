@@ -182,6 +182,10 @@ const PrinterList: React.FC = () => {
       setConfirmDelete(false);
     },
     onError: (error) => {
+      console.error("❌ [PRINTER-DELETE] Error en deleteMutation:", error);
+      console.error("❌ [PRINTER-DELETE] Error message:", error.message);
+      console.error("❌ [PRINTER-DELETE] Error tipo:", typeof error);
+
       toast({
         title: "Error",
         description: `Error al eliminar impresora: ${error.message}`,

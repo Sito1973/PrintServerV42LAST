@@ -395,18 +395,114 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = await validateApiKey(req, res);
       if (!user) return;
 
-      let printers = await storage.listPrinters();
+      // Obtener impresoras básicas primero
+      const printersBasic = await db
+        .select({
+          id: printers.id,
+          name: printers.name,
+          model: printers.model,
+          status: printers.status,
+          lastPrintTime: printers.lastPrintTime,
+          uniqueId: printers.uniqueId,
+          isActive: printers.isActive,
+          // Campos legacy (string con IDs)
+          location: printers.location,
+          floor: printers.floor,
+          // Nuevos campos con IDs
+          companyId: printers.companyId,
+          locationId: printers.locationId
+        })
+        .from(printers)
+        .where(eq(printers.isActive, true));
+
+      // Resolver nombres para cada impresora
+      const printersWithDetails = await Promise.all(
+        printersBasic.map(async (printer) => {
+          let companyName = null;
+          let locationName = null;
+          let legacyCompanyName = null;
+          let legacyLocationName = null;
+
+          // Resolver company/location nuevos (por ID numérico)
+          if (printer.companyId) {
+            const [company] = await db
+              .select({ name: companies.name })
+              .from(companies)
+              .where(eq(companies.id, printer.companyId))
+              .limit(1);
+            companyName = company?.name || null;
+          }
+
+          if (printer.locationId) {
+            const [location] = await db
+              .select({ name: locations.name })
+              .from(locations)
+              .where(eq(locations.id, printer.locationId))
+              .limit(1);
+            locationName = location?.name || null;
+          }
+
+          // Resolver campos legacy (location = empresa ID, floor = sede ID)
+          if (printer.location) {
+            try {
+              const numericId = parseInt(printer.location);
+              if (!isNaN(numericId)) {
+                const [legacyCompany] = await db
+                  .select({ name: companies.name })
+                  .from(companies)
+                  .where(eq(companies.id, numericId))
+                  .limit(1);
+                legacyCompanyName = legacyCompany?.name || printer.location;
+              } else {
+                legacyCompanyName = printer.location;
+              }
+            } catch {
+              legacyCompanyName = printer.location;
+            }
+          }
+
+          if (printer.floor) {
+            try {
+              const numericId = parseInt(printer.floor);
+              if (!isNaN(numericId)) {
+                const [legacyLocation] = await db
+                  .select({ name: locations.name })
+                  .from(locations)
+                  .where(eq(locations.id, numericId))
+                  .limit(1);
+                legacyLocationName = legacyLocation?.name || printer.floor;
+              } else {
+                legacyLocationName = printer.floor;
+              }
+            } catch {
+              legacyLocationName = printer.floor;
+            }
+          }
+
+          return {
+            ...printer,
+            // Información de nuevos campos
+            companyName,
+            locationName,
+            // Información de campos legacy resueltos
+            legacyCompanyName,
+            legacyLocationName
+          };
+        })
+      );
+
+      let filteredPrinters = printersWithDetails;
 
       // Si no es admin, filtrar por sede y empresa del usuario
       if (!user.isAdmin && (user.location || user.floor)) {
-        printers = printers.filter(printer => {
+        filteredPrinters = printersWithDetails.filter(printer => {
           const matchLocation = !user.location || printer.location === user.location;
           const matchFloor = !user.floor || printer.floor === user.floor;
           return matchLocation && matchFloor;
         });
       }
 
-      res.json(printers);
+      res.json(filteredPrinters);
     } catch (error) {
       handleValidationError(error, res);
     }
@@ -465,13 +561,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const printerId = parseInt(req.params.id);
-      const deleted = await storage.deletePrinter(printerId);
-      if (!deleted) {
+
+      if (isNaN(printerId)) {
+        return res.status(400).json({ message: "ID de impresora inválido" });
+      }
+
+      console.log(`🗑️ [PRINTERS] Eliminando impresora ${printerId} por usuario ${user.username}`);
+
+      // Verificar que la impresora existe antes de eliminar
+      const printer = await storage.getPrinter(printerId);
+      if (!printer) {
         return res.status(404).json({ message: "Impresora no encontrada" });
       }
 
-      res.status(204).end();
+      const deleted = await storage.deletePrinter(printerId);
+      if (!deleted) {
+        return res.status(500).json({ message: "Error al eliminar la impresora" });
+      }
+
+      console.log(`✅ [PRINTERS] Impresora ${printerId} (${printer.name}) eliminada exitosamente`);
+
+      // Devolver respuesta JSON en lugar de 204 vacío
+      res.json({ 
+        success: true,
+        message: "Impresora eliminada exitosamente",
+        printerName: printer.name,
+        printerId: printerId
+      });
     } catch (error) {
+      console.error('❌ [PRINTERS] Error deleting printer:', error);
+
+      // Manejar el error específico de trabajos asociados
+      if (error instanceof Error && error.message.includes('trabajo(s) de impresión asociado(s)')) {
+        // Obtener info de la impresora para el error
+        let printerName = 'Desconocida';
+        try {
+          const printerInfo = await storage.getPrinter(printerId);
+          printerName = printerInfo?.name || 'Desconocida';
+        } catch (e) {
+          // Si no se puede obtener, usar valor por defecto
+        }
+
+        return res.status(400).json({ 
+          message: error.message,
+          code: 'PRINTER_HAS_JOBS',
+          printerName: printerName
+        });
+      }
+
       handleValidationError(error, res);
     }
   });

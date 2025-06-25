@@ -147,8 +147,18 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deletePrinter(id: number): Promise<boolean> {
+    // Verificar si hay trabajos de impresión asociados
+    const [jobCount] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(printJobs)
+      .where(eq(printJobs.printerId, id));
+
+    if (jobCount.count > 0) {
+      throw new Error(`No se puede eliminar la impresora. Tiene ${jobCount.count} trabajo(s) de impresión asociado(s). Elimine primero todos los trabajos de impresión de esta impresora.`);
+    }
+
     const result = await db.delete(printers).where(eq(printers.id, id));
-    return !!result;
+    return result.rowCount > 0;
   }
 
   async listPrinters(): Promise<Printer[]> {
