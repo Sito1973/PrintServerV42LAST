@@ -171,7 +171,9 @@ export const base64PrintJobRequestSchema = z.object({
   printerId: z.number().positive(),
   documentBase64: z.string().min(1),
   documentName: z.string().min(1),
-  format: z.enum(['pdf', 'image', 'html', 'txt', 'svg']).optional().default('image'),
+  type: z.enum(['pixel', 'raw']).optional().default('pixel'), // Tipo de dato: pixel para imágenes/PDFs, raw para comandos
+  format: z.enum(['pdf', 'image', 'html', 'txt', 'svg', 'command']).optional().default('image'), // Agregado 'command' para comandos RAW
+  flavor: z.enum(['base64', 'file', 'plain']).optional().default('base64'), // Sabor del dato
   copies: z.number().positive().optional().default(1),
   duplex: z.boolean().optional().default(false),
   orientation: z.enum(['portrait', 'landscape']).optional().default('portrait'),

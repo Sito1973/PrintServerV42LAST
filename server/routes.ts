@@ -950,7 +950,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`👤 [BASE64] Usuario: ${user.username} (ID: ${user.id})`);
       console.log(`🖨️ [BASE64] Impresora ID: ${printData.printerId}`);
       console.log(`📋 [BASE64] Documento: ${printData.documentName}`);
+      console.log(`🏷️ [BASE64] Tipo: ${printData.type || 'pixel'}`);
       console.log(`📝 [BASE64] Formato: ${printData.format || 'image'}`);
+      console.log(`🎯 [BASE64] Sabor: ${printData.flavor || 'base64'}`);
       //console.log(`📊 [BASE64] Tamaño Base64: ${printData.documentBase64.length} caracteres`);
 
       // Buscar impresora
@@ -998,14 +1000,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`📝 [BASE64] Trabajo creado con ID: ${printJob.id}`);
 
       // PROCESAMIENTO SÍNCRONO INMEDIATO
-      // Preparar datos QZ para Base64
-      const qzData = {
-        printer: printer.name,
-        data: [{
+      // Preparar datos QZ según el tipo de dato
+      const isRawCommand = printData.type === 'raw';
+      
+      let qzDataItem;
+      if (isRawCommand) {
+        // Para comandos RAW: configuración mínima, sin opciones de imagen
+        qzDataItem = {
+          type: 'raw',
+          format: printData.format || 'command',
+          flavor: printData.flavor || 'base64',
+          data: printData.documentBase64
+        };
+      } else {
+        // Para datos de imagen/PDF: configuración completa con opciones
+        qzDataItem = {
           type: 'pixel',
-          format: printData.format || 'image', // Parametrizable desde el request
-          flavor: 'base64', // Usar base64 en lugar de file
-          data: printData.documentBase64, // Datos Base64 directos
+          format: printData.format || 'image',
+          flavor: printData.flavor || 'base64',
+          data: printData.documentBase64,
           options: {
             orientation: printData.orientation || 'portrait',
             copies: printData.copies || 1,
@@ -1018,8 +1031,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
             ...(printData.options?.interpolation && { interpolation: printData.options.interpolation }),
             ...(printData.options?.colorType && { colorType: printData.options.colorType }),
           }
-        }],
-        config: {
+        };
+      }
+
+      // Configuración condicional según el tipo de dato
+      let qzConfig;
+      if (isRawCommand) {
+        // Para comandos RAW: configuración mínima
+        qzConfig = {
+          jobName: `${printData.documentName} - ID: ${printJob.id}`
+        };
+      } else {
+        // Para datos de imagen/PDF: configuración completa
+        qzConfig = {
           jobName: `${printData.documentName} - ID: ${printJob.id}`,
           units: printData.size?.units || 'mm',
           ...(printData.size && { 
@@ -1032,17 +1056,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ...(printData.options?.colorType && { colorType: printData.options.colorType }),
           ...(printData.options?.interpolation && { interpolation: printData.options.interpolation }),
           ...(printData.options?.scaleContent !== undefined && { scaleContent: printData.options.scaleContent }),
-          ...(printData.options?.rasterize !== undefined && { rasterize: printData.options.rasterize }),
-        }
+          ...(printData.options?.rasterize !== undefined && { rasterize: printData.options.rasterize })
+        };
+      }
+
+      const qzData = {
+        printer: printer.name,
+        data: [qzDataItem],
+        config: qzConfig
       };
 
-      // Configurar márgenes desde la solicitud JSON o usar valores por defecto
-      qzData.config.margins = printData.margins || {
-        top: 12.7,   // milímetros por defecto (equivalente a 0.5 pulgadas)
-        right: 12.7,
-        bottom: 12.7,
-        left: 12.7
-      };
+      // Configurar márgenes SOLO para datos no-RAW
+      if (!isRawCommand) {
+        (qzData.config as any).margins = printData.margins || {
+          top: 12.7,   // milímetros por defecto (equivalente a 0.5 pulgadas)
+          right: 12.7,
+          bottom: 12.7,
+          left: 12.7
+        };
+      }
 
       console.log(`🔧 [BASE64] Configuración QZ preparada para impresora: ${printer.name}`);
 
