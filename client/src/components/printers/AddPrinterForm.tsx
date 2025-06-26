@@ -45,6 +45,7 @@ const formSchema = z.object({
   location: z.string().min(1, "Empresa es requerida"),
   floor: z.string().min(1, "Sede es requerida"),
   status: z.enum(["online", "offline", "busy", "error"]),
+  apiKeyUser: z.string().optional(),
 });
 
 type PrinterFormValues = z.infer<typeof formSchema>;
@@ -217,6 +218,20 @@ const AddPrinterForm: React.FC<AddPrinterFormProps> = ({ trigger }) => {
                     <FormLabel>ID Único</FormLabel>
                     <FormControl>
                       <Input placeholder="impresora123" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="apiKeyUser"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>API Key de Usuario (Opcional)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Ingrese la API Key" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

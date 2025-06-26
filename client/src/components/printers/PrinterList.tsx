@@ -57,6 +57,7 @@ interface Printer {
   lastPrintTime: string | null;
   uniqueId: string;     // ← ID único que tú ingresas (texto)
   isActive: boolean;
+  apiKeyUser?: string;  // ← API Key de usuario (opcional)
 }
 
 interface PrinterEditForm extends Partial<Printer> {
@@ -234,6 +235,7 @@ const PrinterList: React.FC = () => {
       status: printer.status,
       isActive: printer.isActive,
       uniqueId: printer.uniqueId,
+      apiKeyUser: printer.apiKeyUser || '',
       locationName: empresaName,
       floorName: sedeName,
     });
@@ -513,15 +515,28 @@ const PrinterList: React.FC = () => {
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="edit-uniqueId">ID Único</Label>
-              <Input
-                id="edit-uniqueId"
-                value={editFormData.uniqueId || ''}
-                onChange={(e) =>
-                  setEditFormData(prev => ({ ...prev, uniqueId: e.target.value }))
-                }
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-uniqueId">ID Único</Label>
+                <Input
+                  id="edit-uniqueId"
+                  value={editFormData.uniqueId || ''}
+                  onChange={(e) =>
+                    setEditFormData(prev => ({ ...prev, uniqueId: e.target.value }))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-apiKeyUser">API Key de Usuario (Opcional)</Label>
+                <Input
+                  id="edit-apiKeyUser"
+                  placeholder="Ingrese la API Key"
+                  value={editFormData.apiKeyUser || ''}
+                  onChange={(e) =>
+                    setEditFormData(prev => ({ ...prev, apiKeyUser: e.target.value }))
+                  }
+                />
+              </div>
             </div>
 
             {/* Selector de Empresa y Sede */}
@@ -574,6 +589,7 @@ const PrinterList: React.FC = () => {
                       floor: editSelectedSede,
                       status: editFormData.status,
                       isActive: editFormData.isActive,
+                      apiKeyUser: editFormData.apiKeyUser,
                     }
                   });
                 }

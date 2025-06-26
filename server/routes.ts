@@ -405,6 +405,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           lastPrintTime: printers.lastPrintTime,
           uniqueId: printers.uniqueId,
           isActive: printers.isActive,
+          apiKeyUser: printers.apiKeyUser,
           // Campos legacy (string con IDs)
           location: printers.location,
           floor: printers.floor,

@@ -70,6 +70,7 @@ export const printers = pgTable("printers", {
   lastPrintTime: timestamp("last_print_time"),
   uniqueId: text("unique_id").notNull().unique(),
   isActive: boolean("is_active").default(true),
+  apiKeyUser: text("api_key_user"), // Nuevo campo para la API Key del usuario
   // Campos existentes (mantener por compatibilidad)
   location: text("location"), // Empresa (string legacy)
   floor: text("floor"), // Sede (string legacy)
@@ -88,6 +89,7 @@ export const insertPrinterSchema = createInsertSchema(printers).pick({
   isActive: true,
   companyId: true,
   locationId: true,
+  apiKeyUser: true,
 });
 
 // Print Jobs table - SIN CAMBIOS
