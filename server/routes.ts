@@ -1005,12 +1005,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       let qzDataItem;
       if (isRawCommand) {
-        // Para comandos RAW: configuración mínima, sin opciones de imagen
+        // Para comandos RAW: configuración para ESC/POS fiscal
         qzDataItem = {
           type: 'raw',
           format: printData.format || 'command',
           flavor: printData.flavor || 'base64',
-          data: printData.documentBase64
+          data: printData.documentBase64,
+          options: {
+            language: "ESCPOS",
+            dotDensity: 'double'
+          }
         };
       } else {
         // Para datos de imagen/PDF: configuración completa con opciones
@@ -1037,9 +1041,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Configuración condicional según el tipo de dato
       let qzConfig;
       if (isRawCommand) {
-        // Para comandos RAW: configuración mínima
+        // Para comandos RAW: configuración para ESC/POS fiscal
         qzConfig = {
-          jobName: `${printData.documentName} - ID: ${printJob.id}`
+          jobName: `${printData.documentName} - ID: ${printJob.id}`,
+          scaleContent: false
         };
       } else {
         // Para datos de imagen/PDF: configuración completa
