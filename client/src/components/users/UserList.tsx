@@ -20,7 +20,8 @@ import {
   Circle, // Para el indicador de estado
   Wifi,   // Para el icono de conectado
   WifiOff, // Para el icono de desconectado
-  Copy
+  Copy,
+  RefreshCw
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
@@ -147,6 +148,7 @@ const UserList: React.FC = () => {
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editFormData, setEditFormData] = useState<UserEditForm>({});
   const [activeUsers, setActiveUsers] = useState<ActiveUser[]>([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Estados para el selector de empresa y sede en edición
   const [editSelectedEmpresa, setEditSelectedEmpresa] = useState('');
@@ -179,8 +181,23 @@ const UserList: React.FC = () => {
   }, [stats]);
 
   // Función para actualizar manualmente los datos de usuarios online
-  const refreshOnlineUsers = () => {
-    refetchStats();
+  const refreshOnlineUsers = async () => {
+    setIsRefreshing(true);
+    try {
+      await refetchStats();
+      toast({
+        title: "Actualizado",
+        description: "Lista de usuarios online actualizada.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "No se pudo actualizar la lista.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   // Refrescar datos cuando el componente se monta
@@ -372,9 +389,11 @@ const UserList: React.FC = () => {
               variant="outline"
               size="sm"
               onClick={refreshOnlineUsers}
+              disabled={isRefreshing}
               className="ml-4"
             >
-              Actualizar
+              <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+              {isRefreshing ? 'Actualizando...' : 'Actualizar'}
             </Button>
           </div>
         </div>
