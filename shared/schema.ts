@@ -169,6 +169,7 @@ export const base64PrintJobRequestSchema = z.object({
   printerId: z.number().positive(),
   documentBase64: z.string().min(1),
   documentName: z.string().min(1),
+  format: z.enum(['pdf', 'image', 'html', 'txt', 'svg']).optional().default('image'),
   copies: z.number().positive().optional().default(1),
   duplex: z.boolean().optional().default(false),
   orientation: z.enum(['portrait', 'landscape']).optional().default('portrait'),

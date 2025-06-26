@@ -949,6 +949,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`👤 [BASE64] Usuario: ${user.username} (ID: ${user.id})`);
       console.log(`🖨️ [BASE64] Impresora ID: ${printData.printerId}`);
       console.log(`📋 [BASE64] Documento: ${printData.documentName}`);
+      console.log(`📝 [BASE64] Formato: ${printData.format || 'image'}`);
       //console.log(`📊 [BASE64] Tamaño Base64: ${printData.documentBase64.length} caracteres`);
 
       // Buscar impresora
@@ -1001,7 +1002,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         printer: printer.name,
         data: [{
           type: 'pixel',
-          format: 'image',
+          format: printData.format || 'image', // Parametrizable desde el request
           flavor: 'base64', // Usar base64 en lugar de file
           data: printData.documentBase64, // Datos Base64 directos
           options: {
