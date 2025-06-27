@@ -1,0 +1,41 @@
+{
+  "printerId": "REEMPLAZAR_CON_TU_PRINTER_ID",
+  "documentName": "test-logo-diferentes-tamaños",
+  "receipt": {
+    "header": {
+      "alignment": "center",
+      "logo": {
+        "data": "iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAYAAACNMs+9AAAABmJLR0QA/wD/AP+gvaeTAAAACklEQVQYlWNgAAIAAAoAAv/lJfwAAAAASUVORK5CYII=",
+        "width": 100,
+        "height": 100,
+        "dotDensity": "single"
+      }
+    },
+    "lines": [
+      {
+        "type": "text",
+        "content": "PRUEBA LOGO 100x50",
+        "alignment": "center",
+        "bold": true
+      },
+      {
+        "type": "line_break",
+        "count": 2
+      },
+      {
+        "type": "text",
+        "content": "Este es un recibo de prueba para verificar",
+        "alignment": "center"
+      },
+      {
+        "type": "text",
+        "content": "el tamaño del logo en el header",
+        "alignment": "center"
+      }
+    ],
+    "footer": {
+      "feed_lines": 3,
+      "cut_paper": true
+    }
+  }
+}

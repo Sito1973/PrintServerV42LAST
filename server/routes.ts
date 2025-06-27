@@ -3051,7 +3051,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           options: { 
             language: "ESCPOS",
             ...(receipt.header.logo.width && { width: receipt.header.logo.width }),
-            ...(receipt.header.logo.height && { height: receipt.header.logo.height })
+            ...(receipt.header.logo.height && { height: receipt.header.logo.height }),
+            ...(receipt.header.logo.dotDensity && { dotDensity: receipt.header.logo.dotDensity })
           }
         });
         escposCommands.push('\n');
