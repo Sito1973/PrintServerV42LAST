@@ -2,13 +2,16 @@
   "printerId": "REEMPLAZAR_CON_TU_PRINTER_ID",
   "documentName": "test-logo-diferentes-tamaños",
   "receipt": {
+    "printerConfig": {
+      "density": {"cross": 203, "feed": 203},
+      "interpolation": "nearest-neighbor"
+    },
     "header": {
       "alignment": "center",
       "logo": {
         "data": "iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAYAAACNMs+9AAAABmJLR0QA/wD/AP+gvaeTAAAACklEQVQYlWNgAAIAAAoAAv/lJfwAAAAASUVORK5CYII=",
         "width": 100,
-        "height": 100,
-        "dotDensity": "single"
+        "height": 100
       }
     },
     "lines": [

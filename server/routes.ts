@@ -3093,7 +3093,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         config: {
           type: 'raw',
           format: 'command',
-          flavor: 'plain'
+          flavor: 'plain',
+          ...(receipt.printerConfig && {
+            density: receipt.printerConfig.density,
+            interpolation: receipt.printerConfig.interpolation
+          })
         }
       };
 
