@@ -3105,8 +3105,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         copies: 1,
         duplex: false,
         orientation: 'portrait',
-        status: 'ready_for_client',
         qzTrayData: JSON.stringify(qzData)
+      });
+
+      // Actualizar status después de crear el job
+      await storage.updatePrintJob(printJob.id, {
+        status: 'ready_for_client'
       });
 
       console.log(`✅ [RECEIPT] Print job creado con ID: ${printJob.id}`);
