@@ -3093,7 +3093,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         userId: user.id,
         copies: 1,
         duplex: false,
-        orientation: 'portrait'
+        orientation: 'portrait',
+        status: 'ready_for_client',
+        qzTrayData: JSON.stringify(qzData)
       });
 
       console.log(`✅ [RECEIPT] Print job creado con ID: ${printJob.id}`);
