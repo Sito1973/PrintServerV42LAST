@@ -3038,12 +3038,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
 
       // Procesar todas las líneas del recibo
-      let qzData: any[] = ['\x1B\x40']; // Reset printer
+      let escposCommands: any[] = ['\x1B\x40']; // Reset printer
 
       // Header logo if exists
       if (receipt.header && receipt.header.logo) {
-        if (receipt.header.alignment === 'center') qzData.push('\x1B\x61\x01');
-        qzData.push({
+        if (receipt.header.alignment === 'center') escposCommands.push('\x1B\x61\x01');
+        escposCommands.push({
           type: 'raw',
           format: 'image',
           flavor: 'base64', 
@@ -3054,36 +3054,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
             ...(receipt.header.logo.height && { height: receipt.header.logo.height })
           }
         });
-        qzData.push('\n');
+        escposCommands.push('\n');
       }
 
       // Process all lines
       receipt.lines.forEach((line: any, index: number) => {
         const lineCommands = processReceiptLine(line, index);
-        qzData.push(...lineCommands);
+        escposCommands.push(...lineCommands);
       });
 
       // Footer actions
       if (receipt.footer) {
         if (receipt.footer.feed_lines) {
-          qzData.push('\n'.repeat(receipt.footer.feed_lines));
+          escposCommands.push('\n'.repeat(receipt.footer.feed_lines));
         }
         
         if (receipt.footer.beep && receipt.footer.beep.enabled) {
           const beepCount = receipt.footer.beep.count || 1;
           for (let i = 0; i < beepCount; i++) {
-            qzData.push('\x1B\x42\x05\x05'); // Beep command
+            escposCommands.push('\x1B\x42\x05\x05'); // Beep command
           }
         }
         
         if (receipt.footer.cut_paper) {
-          qzData.push('\x1D\x56\x00'); // Full cut
+          escposCommands.push('\x1D\x56\x00'); // Full cut
         }
         
         if (receipt.footer.open_drawer) {
-          qzData.push('\x1B\x70\x00\x19\x250'); // Open drawer
+          escposCommands.push('\x1B\x70\x00\x19\x250'); // Open drawer
         }
       }
+
+      // Crear estructura QZ correcta igual que print-base64
+      const qzData = {
+        printer: printer.name,
+        data: escposCommands,
+        config: {
+          type: 'raw',
+          format: 'command',
+          flavor: 'plain'
+        }
+      };
 
       // Crear job en la base de datos
       const printJob = await storage.createPrintJob({
