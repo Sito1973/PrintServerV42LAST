@@ -2717,6 +2717,434 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ✅ ENDPOINT: Control Avanzado de Recibos Línea por Línea
+  app.post("/api/print-receipt", async (req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+
+    try {
+      // Validar API Key
+      const user = await validateApiKey(req, res);
+      if (!user) return;
+
+      const { printerId, documentName, receipt } = req.body;
+      
+      if (!printerId || !receipt || !receipt.lines || !Array.isArray(receipt.lines)) {
+        return res.status(400).json({ 
+          message: "Se requieren printerId y receipt.lines (array)" 
+        });
+      }
+
+      console.log(`📄 [RECEIPT] ========== PROCESANDO RECIBO AVANZADO ==========`);
+      console.log(`👤 [RECEIPT] Usuario: ${user.username} (ID: ${user.id})`);
+      console.log(`🖨️ [RECEIPT] Impresora ID: ${printerId}`);
+      console.log(`📋 [RECEIPT] Documento: ${documentName || 'Recibo sin nombre'}`);
+      console.log(`📝 [RECEIPT] Líneas: ${receipt.lines.length} elementos`);
+
+      // Buscar impresora
+      const printer = await storage.getPrinter(printerId);
+      if (!printer) {
+        return res.status(404).json({ message: "Impresora no encontrada" });
+      }
+
+      if (printer.status === 'offline') {
+        return res.status(400).json({ message: "Impresora está desconectada" });
+      }
+
+      console.log(`✅ [RECEIPT] Impresora encontrada: ${printer.name} (${printer.uniqueId})`);
+
+      // Función helper para aplicar formato de texto
+      const applyTextFormatting = (line: any) => {
+        let commands: string[] = [];
+        
+        // Alignment
+        if (line.alignment === 'center') commands.push('\x1B\x61\x01');
+        else if (line.alignment === 'right') commands.push('\x1B\x61\x02');
+        else commands.push('\x1B\x61\x00'); // left
+        
+        // Font type (A, B, C)
+        if (line.font === 'B') {
+          commands.push('\x1B\x4D\x01'); // Font B (small)
+        } else if (line.font === 'C') {
+          commands.push('\x1B\x4D\x02'); // Font C (condensed)
+        } else {
+          commands.push('\x1B\x4D\x00'); // Font A (normal) - default
+        }
+        
+        // Formatting
+        let formatCmd = '\x1B\x21';
+        let formatByte = 0x00;
+        if (line.bold) formatByte |= 0x08;
+        if (line.doubleHeight) formatByte |= 0x10;
+        if (line.doubleWidth) formatByte |= 0x20;
+        if (formatByte !== 0x00) {
+          commands.push(formatCmd + String.fromCharCode(formatByte));
+        }
+        
+        // Underline
+        if (line.underline) commands.push('\x1B\x2D\x01');
+        
+        return commands;
+      };
+      
+      // Función helper para resetear formato de texto
+      const resetTextFormatting = (line: any) => {
+        let commands: string[] = [];
+        if (line.bold || line.doubleHeight || line.doubleWidth || line.underline || line.font) {
+          commands.push('\x1B\x21\x00'); // Reset font formatting
+          commands.push('\x1B\x2D\x00'); // Reset underline
+          commands.push('\x1B\x4D\x00'); // Reset to Font A
+        }
+        return commands;
+      };
+
+      // Función helper para convertir líneas a comandos ESC/POS
+      const processReceiptLine = (line: any, index: number) => {
+        console.log(`🔄 [RECEIPT] Procesando línea ${index + 1}: ${line.type}`);
+        
+        switch (line.type) {
+          case 'text':
+            let textCommands = [];
+            
+            // Aplicar formato
+            textCommands.push(...applyTextFormatting(line));
+            
+            // Content
+            textCommands.push(line.content);
+            textCommands.push('\n');
+            
+            // Reset formatting
+            textCommands.push(...resetTextFormatting(line));
+            
+            return textCommands;
+
+          case 'separator':
+            const char = line.char || '-';
+            const length = line.length || 32;
+            return [char.repeat(length), '\n'];
+
+          case 'line_break':
+            const count = line.count || 1;
+            return ['\n'.repeat(count)];
+
+          case 'image':
+            return [{
+              type: 'raw',
+              format: 'image',
+              flavor: 'base64',
+              data: line.data,
+              options: { 
+                language: "ESCPOS",
+                ...(line.width && { width: line.width }),
+                ...(line.height && { height: line.height })
+              }
+            }];
+
+          case 'qr_code':
+            // QR Code ESC/POS commands
+            const size = line.size || 3;
+            const qrCommands = [
+              '\x1D\x28\x6B\x04\x00\x31\x41', // QR Code model
+              `\x1D\x28\x6B\x03\x00\x31\x43${String.fromCharCode(size)}`, // Size
+              '\x1D\x28\x6B\x03\x00\x31\x45\x30', // Error correction
+            ];
+            
+            // Data length and content
+            const qrData = line.data;
+            const dataLength = qrData.length + 3;
+            const lenLow = dataLength & 0xFF;
+            const lenHigh = (dataLength >> 8) & 0xFF;
+            qrCommands.push(`\x1D\x28\x6B${String.fromCharCode(lenLow)}${String.fromCharCode(lenHigh)}\x31\x50\x30${qrData}`);
+            qrCommands.push('\x1D\x28\x6B\x03\x00\x31\x51\x30'); // Print QR
+            
+            return qrCommands;
+
+          case 'product_header':
+            const columns = line.columns || ['CANT', 'DESCRIPCION', 'V/UNIT', 'V/TOTAL'];
+            const widths = line.widths || [4, 20, 8, 8];
+            let headerCommands = [];
+            
+            // Aplicar formato
+            headerCommands.push(...applyTextFormatting(line));
+            
+            let headerLine = '';
+            columns.forEach((col: string, i: number) => {
+              const width = widths[i] || 8;
+              headerLine += col.padEnd(width).substring(0, width);
+            });
+            
+            headerCommands.push(headerLine);
+            headerCommands.push('\n');
+            
+            // Reset formatting
+            headerCommands.push(...resetTextFormatting(line));
+            
+            return headerCommands;
+
+          case 'product_line':
+            const qty = line.quantity.toString();
+            const desc = line.description || '';
+            const currency = line.currency || '';
+            const locale = line.locale || 'us';
+            
+            // Función para formatear números según locale
+            const formatPrice = (price: number, locale: string): string => {
+              if (locale === 'co') {
+                // Colombia: sin decimales, punto como separador de miles
+                return price.toLocaleString('es-CO', { 
+                  minimumFractionDigits: 0, 
+                  maximumFractionDigits: 0 
+                });
+              } else if (locale === 'eu') {
+                // Europa: decimales con coma
+                return price.toLocaleString('es-ES', { 
+                  minimumFractionDigits: 2, 
+                  maximumFractionDigits: 2 
+                });
+              } else {
+                // US/default: decimales con punto
+                return price.toFixed(2);
+              }
+            };
+            
+            const unitPrice = formatPrice(line.unit_price || 0, locale);
+            const totalPrice = formatPrice(line.total_price || 0, locale);
+            
+            const productWidths = line.widths || [4, 20, 8, 8];
+            const showCurrency = line.showCurrency !== false; // Por defecto true, se puede desactivar
+            
+            let productCommands = [];
+            
+            // Aplicar formato
+            productCommands.push(...applyTextFormatting(line));
+            
+            let productLine = '';
+            productLine += qty.padEnd(productWidths[0]).substring(0, productWidths[0]);
+            productLine += desc.padEnd(productWidths[1]).substring(0, productWidths[1]);
+            
+            if (showCurrency) {
+              productLine += (currency + unitPrice).padStart(productWidths[2]).substring(0, productWidths[2]);
+              productLine += (currency + totalPrice).padStart(productWidths[3]).substring(0, productWidths[3]);
+            } else {
+              productLine += unitPrice.padStart(productWidths[2]).substring(0, productWidths[2]);
+              productLine += totalPrice.padStart(productWidths[3]).substring(0, productWidths[3]);
+            }
+            
+            productCommands.push(productLine);
+            productCommands.push('\n');
+            
+            // Reset formatting
+            productCommands.push(...resetTextFormatting(line));
+            
+            return productCommands;
+
+          case 'total_line':
+            const label = line.label || '';
+            const totalCurrency = line.currency || '';
+            const totalLocale = line.locale || 'us';
+            
+            // Usar la misma función de formateo
+            const formatTotalPrice = (price: number, locale: string): string => {
+              if (locale === 'co') {
+                return price.toLocaleString('es-CO', { 
+                  minimumFractionDigits: 0, 
+                  maximumFractionDigits: 0 
+                });
+              } else if (locale === 'eu') {
+                return price.toLocaleString('es-ES', { 
+                  minimumFractionDigits: 2, 
+                  maximumFractionDigits: 2 
+                });
+              } else {
+                return price.toFixed(2);
+              }
+            };
+            
+            const value = formatTotalPrice(line.value || 0, totalLocale);
+            
+            let totalCommands = [];
+            
+            // Aplicar formato
+            totalCommands.push(...applyTextFormatting(line));
+            
+            totalCommands.push(`${label.padStart(20)} ${totalCurrency}${value}`);
+            totalCommands.push('\n');
+            
+            // Reset formatting
+            totalCommands.push(...resetTextFormatting(line));
+            
+            return totalCommands;
+
+          case 'separator_total':
+            const sepChar = line.char || '-';
+            const sepLength = line.length || 15;
+            const sepAlign = line.alignment || 'right';
+            
+            let sepCommands = [];
+            if (sepAlign === 'right') sepCommands.push('\x1B\x61\x02');
+            else if (sepAlign === 'center') sepCommands.push('\x1B\x61\x01');
+            else sepCommands.push('\x1B\x61\x00');
+            
+            sepCommands.push(sepChar.repeat(sepLength));
+            sepCommands.push('\n');
+            
+            return sepCommands;
+
+          case 'payment_section':
+            let paymentCommands = [];
+            
+            // Aplicar formato
+            paymentCommands.push(...applyTextFormatting(line));
+            
+            paymentCommands.push('\n');
+            paymentCommands.push(line.title || 'FORMA DE PAGO:');
+            paymentCommands.push('\n');
+            
+            if (line.payments && Array.isArray(line.payments)) {
+              line.payments.forEach((payment: any) => {
+                const method = payment.method || '';
+                const amount = (payment.amount || 0).toFixed(0);
+                const payCurrency = payment.currency || '';
+                paymentCommands.push(`${method} ${payCurrency}${amount}`);
+                paymentCommands.push('\n');
+              });
+            }
+            
+            // Reset formatting
+            paymentCommands.push(...resetTextFormatting(line));
+            
+            return paymentCommands;
+
+          case 'barcode':
+            // Basic barcode implementation (Code 128)
+            const barcodeData = line.data || '';
+            const barcodeHeight = line.height || 50;
+            
+            return [
+              '\x1D\x68' + String.fromCharCode(barcodeHeight), // Height
+              '\x1D\x77\x02', // Width
+              '\x1D\x48\x02', // HRI position below
+              '\x1D\x6B\x49' + String.fromCharCode(barcodeData.length) + barcodeData, // Print barcode
+              '\n'
+            ];
+
+          case 'custom_escpos':
+            console.log(`🔧 [RECEIPT] Comando ESC/POS personalizado`);
+            return line.commands || [];
+
+          default:
+            console.log(`⚠️ [RECEIPT] Tipo de línea desconocido: ${line.type}`);
+            return [];
+        }
+      };
+
+      // Procesar todas las líneas del recibo
+      let qzData: any[] = ['\x1B\x40']; // Reset printer
+
+      // Header logo if exists
+      if (receipt.header && receipt.header.logo) {
+        if (receipt.header.alignment === 'center') qzData.push('\x1B\x61\x01');
+        qzData.push({
+          type: 'raw',
+          format: 'image',
+          flavor: 'base64', 
+          data: receipt.header.logo.data,
+          options: { 
+            language: "ESCPOS",
+            ...(receipt.header.logo.width && { width: receipt.header.logo.width }),
+            ...(receipt.header.logo.height && { height: receipt.header.logo.height })
+          }
+        });
+        qzData.push('\n');
+      }
+
+      // Process all lines
+      receipt.lines.forEach((line: any, index: number) => {
+        const lineCommands = processReceiptLine(line, index);
+        qzData.push(...lineCommands);
+      });
+
+      // Footer actions
+      if (receipt.footer) {
+        if (receipt.footer.feed_lines) {
+          qzData.push('\n'.repeat(receipt.footer.feed_lines));
+        }
+        
+        if (receipt.footer.beep && receipt.footer.beep.enabled) {
+          const beepCount = receipt.footer.beep.count || 1;
+          for (let i = 0; i < beepCount; i++) {
+            qzData.push('\x1B\x42\x05\x05'); // Beep command
+          }
+        }
+        
+        if (receipt.footer.cut_paper) {
+          qzData.push('\x1D\x56\x00'); // Full cut
+        }
+        
+        if (receipt.footer.open_drawer) {
+          qzData.push('\x1B\x70\x00\x19\x250'); // Open drawer
+        }
+      }
+
+      // Crear job en la base de datos
+      const printJob = await storage.createPrintJob({
+        documentName: documentName || `receipt-${Date.now()}`,
+        documentUrl: '',
+        printerId: printer.id,
+        userId: user.id,
+        copies: 1,
+        duplex: false,
+        orientation: 'portrait'
+      });
+
+      console.log(`✅ [RECEIPT] Print job creado con ID: ${printJob.id}`);
+
+      // Preparar datos para el cliente
+      const jobData = {
+        id: printJob.id,
+        userId: user.id,
+        documentName: documentName || `receipt-${Date.now()}`,
+        documentUrl: '',
+        printerName: printer.name,
+        printerUniqueId: printer.uniqueId,
+        status: 'ready_for_client',
+        copies: 1,
+        duplex: false,
+        orientation: 'portrait',
+        qzTrayData: qzData,
+        timestamp: Date.now(),
+        isAdvancedReceipt: true
+      };
+
+      // Obtener socket del usuario y notificar
+      const userSocketId = (global as any).getUserSocket?.(user.id.toString());
+      if (userSocketId && socketServer) {
+        console.log(`🚀 [RECEIPT] Notificando a usuario ${user.username} via WebSocket`);
+        socketServer.to(userSocketId).emit('new-print-job', jobData);
+      } else {
+        console.log(`⚠️ [RECEIPT] Usuario no conectado por WebSocket - procesará por polling`);
+      }
+
+      res.json({
+        success: true,
+        message: `Recibo avanzado enviado a impresora '${printer.name}'`,
+        jobId: printJob.id,
+        documentName: documentName || `receipt-${Date.now()}`,
+        printerName: printer.name,
+        linesProcessed: receipt.lines.length,
+        hasHeader: !!receipt.header,
+        hasFooter: !!receipt.footer,
+        notifiedViaWebSocket: !!userSocketId
+      });
+
+    } catch (error) {
+      console.error('❌ [RECEIPT] Error:', error);
+      res.status(500).json({ 
+        error: 'Error al procesar recibo avanzado',
+        details: error instanceof Error ? error.message : 'Error desconocido'
+      });
+    }
+  });
+
 
   return httpServer;
 }
