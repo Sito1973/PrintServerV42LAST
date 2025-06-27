@@ -3043,6 +3043,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Header logo if exists
       if (receipt.header && receipt.header.logo) {
         if (receipt.header.alignment === 'center') escposCommands.push('\x1B\x61\x01');
+        
+        // Comandos ESC/POS para controlar el escalado de imagen
+        if (receipt.header.logo.escposScaling) {
+          // Comando GS ( L para establecer escalado
+          const scaleX = receipt.header.logo.scaleX || 1;
+          const scaleY = receipt.header.logo.scaleY || 1;
+          escposCommands.push(`\x1D\x28\x4C\x04\x00\x30\x01${String.fromCharCode(scaleX)}${String.fromCharCode(scaleY)}`);
+        }
+        
         escposCommands.push({
           type: 'raw',
           format: 'image',
