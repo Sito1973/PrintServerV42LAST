@@ -2637,9 +2637,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ];
           break;
 
+        case 'qr':
+          documentName = 'Test QR Code ESC/POS';
+          // QR data to encode
+          const qrData = `https://qz.io`;
+          
+          // QR size (dot size)
+          const dots = '\x09';
+          
+          // Calculate QR data length for proper encoding
+          const qrLength = qrData.length + 3;
+          const size1 = String.fromCharCode(qrLength % 256);
+          const size0 = String.fromCharCode(Math.floor(qrLength / 256));
+          
+          escposData = [
+            '\x1B\x40',          // init
+            '\x1B\x61\x31',     // center align
+            '\x1B\x21\x30',     // em mode on
+            'TEST QR CODE',
+            '\x1B\x21\x0A',     // em mode off
+            '\n',
+            'Print Server V42\n',
+            '================\n',
+            '\n',
+            `Usuario: ${user.username}\n`,
+            `Fecha: ${new Date().toLocaleString()}\n`,
+            '\n',
+            'Código QR de prueba:\n',
+            '\n',
+            
+            // QR Code ESC/POS commands
+            '\x1D\x28\x6B\x04\x00\x31\x41\x32\x00',              // Function 165: Select QR model (model 2)
+            '\x1D\x28\x6B\x03\x00\x31\x43' + dots,               // Function 167: Set module size
+            '\x1D\x28\x6B\x03\x00\x31\x45\x30',                  // Function 169: Set error correction level (L=48, M=49, Q=50, H=51)
+            '\x1D\x28\x6B' + size1 + size0 + '\x31\x50\x30' + qrData, // Function 180: Store QR data
+            '\x1D\x28\x6B\x03\x00\x31\x51\x30',                  // Function 181: Print QR code
+            '\x1D\x28\x6B\x03\x00\x31\x52\x30',                  // Function 182: Transmit size info
+            
+            '\n',
+            'URL codificada:\n',
+            qrData + '\n',
+            '\n',
+            '================\n',
+            'Escanee el código QR\n',
+            'para verificar\n',
+            '\n\n\n',
+            '\x1B\x69',         // cut paper
+          ];
+          break;
+
         default:
           return res.status(400).json({ 
-            error: "Tipo de test inválido. Use: basic, advanced, receipt" 
+            error: "Tipo de test inválido. Use: basic, advanced, receipt, qr" 
           });
       }
 
