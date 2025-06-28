@@ -2642,8 +2642,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // QR data to encode
           const qrData = `https://catalogo-vpfe-hab.dian.gov.co/document/searchqr?documentkey=e7666007dd087058f5f9943a7646d94fa995d07de6dde05634cd86c74a63f1662c94c4c29bd4fea577a224131260f306`;
           
-          // QR size (dot size) - valores válidos: 1-16 (0x01-0x10)
-          const dots = '\x03';
+          // QR size (dot size)
+          const dots = '\x09';
           
           // Calculate QR data length for proper encoding
           const qrLength = qrData.length + 3;
