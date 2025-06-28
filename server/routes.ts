@@ -2891,19 +2891,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
           case 'qr_code':
             // QR Code ESC/POS commands
             const size = line.size || 3;
-            const qrCommands = [
-              '\x1D\x28\x6B\x04\x00\x31\x41', // QR Code model
-              `\x1D\x28\x6B\x03\x00\x31\x43${String.fromCharCode(size)}`, // Size
-              '\x1D\x28\x6B\x03\x00\x31\x45\x30', // Error correction
-            ];
-            
-            // Data length and content
             const qrData = line.data;
-            const dataLength = qrData.length + 3;
-            const lenLow = dataLength & 0xFF;
-            const lenHigh = (dataLength >> 8) & 0xFF;
-            qrCommands.push(`\x1D\x28\x6B${String.fromCharCode(lenLow)}${String.fromCharCode(lenHigh)}\x31\x50\x30${qrData}`);
-            qrCommands.push('\x1D\x28\x6B\x03\x00\x31\x51\x30'); // Print QR
+            
+            // Calculate QR data length for proper encoding
+            const qrLength = qrData.length + 3;
+            const size1 = String.fromCharCode(qrLength % 256);
+            const size0 = String.fromCharCode(Math.floor(qrLength / 256));
+            
+            const qrCommands = [
+              '\x1D\x28\x6B\x04\x00\x31\x41\x32\x00',              // Function 165: Select QR model (model 2)
+              '\x1D\x28\x6B\x03\x00\x31\x43' + String.fromCharCode(size), // Function 167: Set module size
+              '\x1D\x28\x6B\x03\x00\x31\x45\x30',                  // Function 169: Set error correction level (L=48, M=49, Q=50, H=51)
+              '\x1D\x28\x6B' + size1 + size0 + '\x31\x50\x30' + qrData, // Function 180: Store QR data
+              '\x1D\x28\x6B\x03\x00\x31\x51\x30',                  // Function 181: Print QR code
+              '\x1D\x28\x6B\x03\x00\x31\x52\x30',                  // Function 182: Transmit size info
+            ];
             
             return qrCommands;
 
