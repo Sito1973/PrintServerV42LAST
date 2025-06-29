@@ -1,18 +1,12 @@
 
-# MULTI-STAGE BUILD PARA EVITAR SECCOMP
-FROM node:20-slim as builder
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci --no-audit
-COPY . .
-RUN npm run build
-
-# IMAGEN FINAL SIN COMANDOS RUN
+# USAR IMAGEN SIN CONSTRUCCIÓN - TODO PRE-CONSTRUIDO
 FROM node:20-slim
 WORKDIR /app
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/package*.json ./
+
+# Copiar todo pre-construido (sin RUN commands)
+COPY dist ./dist
+COPY node_modules ./node_modules
+COPY package*.json ./
 COPY start.sh ./start.sh
 
 ENV NODE_ENV=production
@@ -21,5 +15,4 @@ ENV HOST=0.0.0.0
 
 EXPOSE 3000
 
-# Usar el script de inicio personalizado
 CMD ["sh", "start.sh"]
