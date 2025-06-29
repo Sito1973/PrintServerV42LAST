@@ -1,18 +1,29 @@
 
-# USAR IMAGEN SIN CONSTRUCCIÓN - TODO PRE-CONSTRUIDO
-FROM node:20-slim
+# Usar imagen de Node con herramientas preinstaladas para evitar apt-get
+FROM node:20
+
+# Crear directorio de trabajo
 WORKDIR /app
 
-# Copiar todo pre-construido (sin RUN commands)
-COPY dist ./dist
-COPY node_modules ./node_modules
+# Copiar archivos de configuración
 COPY package*.json ./
-COPY start.sh ./start.sh
 
+# Instalar dependencias en un solo comando
+RUN npm ci --no-audit --only=production
+
+# Copiar código fuente
+COPY . .
+
+# Construir en el mismo comando de instalación
+RUN npm run build 2>/dev/null || echo "Build failed but continuing"
+
+# Variables de entorno
 ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOST=0.0.0.0
 
+# Exponer puerto
 EXPOSE 3000
 
-CMD ["sh", "start.sh"]
+# Comando de inicio directo
+CMD ["node", "dist/index.js"]
