@@ -1,13 +1,13 @@
 
-FROM node:20-slim
+FROM node:20-alpine
 
 # Instalar dependencias del sistema
-RUN apt-get update && apt-get install -y \
+RUN apk add --no-cache \
     curl \
     wget \
-    netcat-traditional \
+    netcat-openbsd \
     postgresql-client \
-    && rm -rf /var/lib/apt/lists/*
+    bash
 
 # Crear directorio de trabajo
 WORKDIR /app
